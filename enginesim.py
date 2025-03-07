@@ -1,3 +1,4 @@
+from matplotlib.pylab import f
 from rocketcea.cea_obj_w_units import CEA_Obj
 from rocketcea.cea_obj import add_new_fuel
 from pyfluids import Fluid, FluidsList, Mixture, Input
@@ -11,6 +12,17 @@ import csv
 import warnings
 
 system('cls')
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 g = sp.constants.g
 
@@ -324,7 +336,7 @@ class engine:
         self.fuel_inj_p = self.pc + self.fuel_dp
         self.ox_inj_p = self.pc + self.ox_dp
 
-    def inj_p_combustion_sim(self, injector, fuel, ox, fuel_inj_p, ox_inj_p, fuel_rho=786, ox_rho=860, ox_gas_class=None, ox_temp=15, fuel_gas_class=None, fuel_temp=15, cstar_eff=1):
+    def inj_p_combustion_sim(self, injector, fuel, ox, fuel_inj_p, ox_inj_p, fuel_rho=786, ox_rho=860, ox_gas_class=None, ox_temp=15, fuel_gas_class=None, fuel_temp=15, cstar_eff=1, n_max=100):
         """Combustion sim based on injector pressures.\n
         Required Inputs: fuel, ox, fuel_inj_p, ox_inj_p, fuel_rho, ox_rho\n
         Optional Inputs: oxclass, ox_gas, ox_temp, fuelclass, fuel_gas, fuel_temp"""
@@ -407,18 +419,21 @@ class engine:
         cstar = cstar_init
         rel_diff = 1
 
-        while rel_diff > 1e-5:
+        n = 0
+        while rel_diff > 1e-4:
+            n += 1
+            converged = True
             with warnings.catch_warnings(record=True) as w:
                 warnings.simplefilter("always", category=RuntimeWarning)
                 try:
                     # pc = sp.optimize.fsolve(pcfunc, x0=(1), args=(cstar*cstar_eff, injector.fuel_CdA, self.fuel_inj_p, fuel_rho, injector.ox_CdA, self.ox_inj_p, ox_rho, ox_gas, ox_gamma, ox_k, fuel_gas, fuel_gamma, fuel_k))[0]
                     pc = sp.optimize.root_scalar(pcfunc, bracket=[1, min_inj_p], args=(cstar*cstar_eff, injector.fuel_CdA, self.fuel_inj_p, fuel_rho, injector.ox_CdA, self.ox_inj_p, ox_rho, ox_gas, ox_gamma, ox_k, fuel_gas, fuel_gamma, fuel_k), method='brentq').root
-                except RuntimeError:
-                    print("Error: Failed to converge")
-                if any(issubclass(warn.category, RuntimeWarning) for warn in w):
+                except ValueError:
                     converged = False
-                else: 
-                    converged = True
+                    pass
+                except Exception:
+                    converged = False
+                    pass
                     
             mdot_f = injector.fuel_CdA * np.sqrt(2 * fuel_rho * (self.fuel_inj_p - pc) * 1e5)
             if ox_gas:
@@ -443,11 +458,16 @@ class engine:
             cstar_old = cstar
             cstar = self.cea.get_Cstar(Pc=pc, MR=OF) * cstar_eff
             rel_diff = abs((cstar - cstar_old) / cstar_old)
+            
+            if n > n_max:
+                print(f"{bcolors.WARNING}Warning: Max iterations exceeded")
+                converged = False
+                break
         
         if converged:
-            print(f"Converged: fuel inj p: {self.fuel_inj_p:.2f}, ox inj p: {self.ox_inj_p:.2f}")
+            print(f"Converged: fuel inj p: {self.fuel_inj_p:.2f}, ox inj p: {self.ox_inj_p:.2f}, n: {n}")
         else:
-            print(f"Convergence failed: fuel inj p: {self.fuel_inj_p:.2f}, ox inj p: {self.ox_inj_p:.2f}")
+            print(f"{bcolors.FAIL}Error: Convergence failed: fuel inj p: {self.fuel_inj_p:.2f}, ox inj p: {self.ox_inj_p:.2f}, n: {n}{bcolors.ENDC}")
 
         self.combustion_sim(fuel, ox, OF, pc, cstar_eff)
 
@@ -1294,14 +1314,14 @@ if __name__ == '__main__':
     ambient_T = 15
 
     propane_inj = injector()
-    propane_inj.size_fuel_holes(Cd = 0.65, d = 0.7)
+    propane_inj.size_fuel_holes(Cd = 0.5, d = 0.7)
     propane_inj.size_ox_anulus(Cd = 0.65, ID = 1, OD = 1.5)
 
     propane = Fluid(FluidsList.nPropane)
     propane.update(Input.temperature(ambient_T), Input.quality(0))
     propane_sat_p = (propane.pressure-100)/1e5
 
-    nitrous_reg_p = 8
+    nitrous_reg_p = 9
 
     coax_igniter.inj_p_combustion_sim(
         injector = propane_inj,
@@ -1312,7 +1332,7 @@ if __name__ == '__main__':
         ox_gas_class = Fluid(FluidsList.NitrousOxide),
         ox_temp = ambient_T,
         fuel_gas_class = Fluid(FluidsList.nPropane),
-        fuel_temp = ambient_T
+        fuel_temp = ambient_T,
     )
     coax_igniter.print_data()
     propane_inj.calc_start_mdot(
@@ -1354,7 +1374,7 @@ if __name__ == '__main__':
     #     fuel = 'Propane',
     #     ox = 'N2O',
     #     OFstart = 0.5,
-    #     OFend = 10,
+    #     OFend = 12,
     #     pc = 25,
     #     pe = 1,
     #     cr = 16,
