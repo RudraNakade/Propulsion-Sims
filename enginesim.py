@@ -148,16 +148,16 @@ class engine:
         self.file = file
         if path.exists(self.file) and path.getsize(self.file) > 0:
             with open(self.file, 'r') as input_file:
-                self.data = input_file.readlines()
-                self.dc = float(self.data[0].split()[1]) * 1e-3
-                self.dt = float(self.data[1].split()[1]) * 1e-3
-                self.de = float(self.data[2].split()[1]) * 1e-3
+                data = input_file.readlines()
+                self.dc = float(data[0].split()[1]) * 1e-3
+                self.dt = float(data[1].split()[1]) * 1e-3
+                self.de = float(data[2].split()[1]) * 1e-3
                 self.eps = (self.de/self.dt)**2
-                self.conv_angle = float(self.data[4].split()[1])
-                self.lc = float(self.data[5].split()[1]) * 1e-3
-                self.le = float(self.data[6].split()[1]) * 1e-3
-                self.theta_n = float(self.data[7].split()[1])
-                self.theta_e = float(self.data[8].split()[1])
+                self.conv_angle = float(data[4].split()[1])
+                self.lc = float(data[5].split()[1]) * 1e-3
+                self.le = float(data[6].split()[1]) * 1e-3
+                self.theta_n = float(data[7].split()[1])
+                self.theta_e = float(data[8].split()[1])
 
             self.rc = self.dc/2
             self.rt = self.dt/2
@@ -411,7 +411,8 @@ class engine:
             with warnings.catch_warnings(record=True) as w:
                 warnings.simplefilter("always", category=RuntimeWarning)
                 try:
-                    pc = sp.optimize.fsolve(pcfunc, x0=(min_inj_p/2), args=(cstar*cstar_eff, injector.fuel_CdA, self.fuel_inj_p, fuel_rho, injector.ox_CdA, self.ox_inj_p, ox_rho, ox_gas, ox_gamma, ox_k, fuel_gas, fuel_gamma, fuel_k))[0]
+                    # pc = sp.optimize.fsolve(pcfunc, x0=(1), args=(cstar*cstar_eff, injector.fuel_CdA, self.fuel_inj_p, fuel_rho, injector.ox_CdA, self.ox_inj_p, ox_rho, ox_gas, ox_gamma, ox_k, fuel_gas, fuel_gamma, fuel_k))[0]
+                    pc = sp.optimize.root_scalar(pcfunc, bracket=[1, min_inj_p], args=(cstar*cstar_eff, injector.fuel_CdA, self.fuel_inj_p, fuel_rho, injector.ox_CdA, self.ox_inj_p, ox_rho, ox_gas, ox_gamma, ox_k, fuel_gas, fuel_gamma, fuel_k), method='brentq').root
                 except RuntimeError:
                     print("Error: Failed to converge")
                 if any(issubclass(warn.category, RuntimeWarning) for warn in w):
@@ -1293,14 +1294,14 @@ if __name__ == '__main__':
     ambient_T = 15
 
     propane_inj = injector()
-    propane_inj.size_fuel_holes(Cd = 0.5, d = 0.7)
+    propane_inj.size_fuel_holes(Cd = 0.65, d = 0.7)
     propane_inj.size_ox_anulus(Cd = 0.65, ID = 1, OD = 1.5)
 
     propane = Fluid(FluidsList.nPropane)
     propane.update(Input.temperature(ambient_T), Input.quality(0))
     propane_sat_p = (propane.pressure-100)/1e5
 
-    nitrous_reg_p = 9
+    nitrous_reg_p = 8
 
     coax_igniter.inj_p_combustion_sim(
         injector = propane_inj,
@@ -1330,43 +1331,43 @@ if __name__ == '__main__':
     fuel_reg_p = 8
     ox_reg_p = 8
 
-    coax_igniter.inj_p_combustion_sim(
-        injector = coax_inj_ox_reg,
-        fuel = 'Isopropanol',
-        ox = 'N2O',
-        fuel_inj_p = fuel_reg_p,
-        ox_inj_p = ox_reg_p,
-        fuel_rho = 786,
-        ox_gas_class = Fluid(FluidsList.NitrousOxide),
-        ox_temp = ambient_T,
-    )
-    coax_igniter.print_data()
-    coax_inj_ox_reg.calc_start_mdot(
-        fuel_inj_p = fuel_reg_p,
-        ox_inj_p = ox_reg_p,
-        fuel_rho = 786,
-        ox_gas_class = Fluid(FluidsList.NitrousOxide),
-        ox_temp = ambient_T,
-    )
+    # coax_igniter.inj_p_combustion_sim(
+    #     injector = coax_inj_ox_reg,
+    #     fuel = 'Isopropanol',
+    #     ox = 'N2O',
+    #     fuel_inj_p = fuel_reg_p,
+    #     ox_inj_p = ox_reg_p,
+    #     fuel_rho = 786,
+    #     ox_gas_class = Fluid(FluidsList.NitrousOxide),
+    #     ox_temp = ambient_T,
+    # )
+    # coax_igniter.print_data()
+    # coax_inj_ox_reg.calc_start_mdot(
+    #     fuel_inj_p = fuel_reg_p,
+    #     ox_inj_p = ox_reg_p,
+    #     fuel_rho = 786,
+    #     ox_gas_class = Fluid(FluidsList.NitrousOxide),
+    #     ox_temp = ambient_T,
+    # )
 
-    OFsweep(
-        fuel = 'Propane',
-        ox = 'N2O',
-        OFstart = 0.5,
-        OFend = 10,
-        pc = 25,
-        pe = 1,
-        cr = 16,
-    )
+    # OFsweep(
+    #     fuel = 'Propane',
+    #     ox = 'N2O',
+    #     OFstart = 0.5,
+    #     OFend = 10,
+    #     pc = 25,
+    #     pe = 1,
+    #     cr = 16,
+    # )
 
-    OFsweep(
-        fuel = 'Isopropanol',
-        ox = 'N2O',
-        OFstart = 0.5,
-        OFend = 10,
-        pc = 25,
-        pe = 1,
-        cr = 16,
-    )
+    # OFsweep(
+    #     fuel = 'Isopropanol',
+    #     ox = 'N2O',
+    #     OFstart = 0.5,
+    #     OFend = 10,
+    #     pc = 25,
+    #     pe = 1,
+    #     cr = 16,
+    # )
 
     plt.show(block=True)
