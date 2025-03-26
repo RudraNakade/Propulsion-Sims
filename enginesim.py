@@ -11,8 +11,6 @@ import scipy as sp
 import csv
 import warnings
 
-system('cls')
-
 class bcolors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
@@ -464,10 +462,10 @@ class engine:
                 converged = False
                 break
         
-        if converged:
-            print(f"Converged: fuel inj p: {self.fuel_inj_p:.2f}, ox inj p: {self.ox_inj_p:.2f}, n: {n}")
-        else:
+        if not converged:
             print(f"{bcolors.FAIL}Error: Convergence failed: fuel inj p: {self.fuel_inj_p:.2f}, ox inj p: {self.ox_inj_p:.2f}, n: {n}{bcolors.ENDC}")
+        # else:
+        #     print(f"Converged: fuel inj p: {self.fuel_inj_p:.2f}, ox inj p: {self.ox_inj_p:.2f}, n: {n}")
 
         self.combustion_sim(fuel, ox, OF, pc, cstar_eff)
 
@@ -1005,15 +1003,86 @@ class engine:
         ax4.legend(['Total', 'Ox', 'Fuel'])
 
 class injector():
+    """A class representing a bipropellant injector for a rocket engine.
+    The injector class provides methods to size both fuel and oxidizer injector elements 
+    and calculate propellant flow rates through these elements. It supports various injector 
+    configurations including annular holes and circular holes.
+
+    Attributes
+    fuel_A : float
+        Fuel injector total area in square meters.
+
+    fuel_Cd : float
+        Fuel injector discharge coefficient, default 0.75.
+
+    ox_A : float
+        Oxidizer injector total area in square meters.
+
+    ox_Cd : float
+        Oxidizer injector discharge coefficient, default 0.4.
+
+    fuel_CdA : float
+        Product of fuel discharge coefficient and area.
+
+    ox_CdA : float
+        Product of oxidizer discharge coefficient and area.
+
+    Methods
+
+    size_fuel_anulus(Cd, ID, OD, n=1)
+        Sizes fuel injector for annular holes.
+
+    size_ox_anulus(Cd, ID, OD, n=1)
+        Sizes oxidizer injector for annular holes.
+
+    size_fuel_holes(Cd, d, n=1)
+        Sizes fuel injector for circular holes.
+
+    size_ox_holes(Cd, d, n=1)
+        Sizes oxidizer injector for circular holes.
+
+    spi_fuel_mdot(dp, fuel_rho)
+        Calculates fuel mass flow rate using single phase incompressible model.
+
+    spi_ox_mdot(dp, ox_rho)
+        Calculates oxidizer mass flow rate using single phase incompressible model.
+
+    calc_start_mdot(fuel_inj_p, ox_inj_p, fuel_rho=786, ox_rho=860, ox_gas_class=None, 
+                   ox_temp=15, fuel_gas_class=None, fuel_temp=15)
+        Calculates starting mass flow rates for injector venting to atmosphere.
+        Supports both incompressible liquid and compressible gas calculations.
+    Notes
+    -----
+    The class converts input dimensions in millimeters to meters internally.
+    For gas propellants, the class can calculate choked flow conditions."""
+
     def __init__(self):
         self.fuel_A = 0
         self.fuel_Cd = 0.75
         self.ox_A = 0
         self.ox_Cd = 0.4
 
-    def update(self):
-        self.fuel_CdA = self.fuel_Cd * self.fuel_A
-        self.ox_CdA = self.ox_Cd * self.ox_A
+    def set_fuel_CdA(self, CdA):
+        """
+        Sets the fuel injector CdA.
+
+        Parameters
+        ----------
+        CdA : float
+            Product of fuel discharge coefficient and area.
+        """
+        self.fuel_CdA = CdA
+
+    def set_ox_CdA(self, CdA):
+        """
+        Sets the oxidizer injector CdA.
+
+        Parameters
+        ----------
+        CdA : float
+            Product of oxidizer discharge coefficient and area.
+        """
+        self.ox_CdA = CdA
 
     def size_fuel_anulus(self, Cd, ID, OD, n = 1):
         """
@@ -1033,7 +1102,6 @@ class injector():
         self.fuel_Cd = Cd
         self.fuel_A = 0.25e-6 * np.pi * (OD**2 - ID**2) * n
         self.fuel_CdA = self.fuel_A * Cd
-        self.update()
     
     def size_ox_anulus(self, Cd, ID, OD, n = 1):
         """
@@ -1053,7 +1121,6 @@ class injector():
         self.ox_Cd = Cd
         self.ox_A = 0.25e-6 * np.pi * (OD**2 - ID**2) * n
         self.ox_CdA = self.ox_A * Cd
-        self.update()
 
     def size_fuel_holes(self, Cd, d, n = 1):
         """
@@ -1070,7 +1137,7 @@ class injector():
         """
         self.fuel_Cd = Cd
         self.fuel_A = 0.25e-6 * np.pi * (d**2) * n
-        self.update()
+        self.fuel_CdA = self.fuel_A * Cd
     
     def size_ox_holes(self, Cd, d, n = 1):
         """
@@ -1087,7 +1154,7 @@ class injector():
         """
         self.ox_Cd = Cd
         self.ox_A = 0.25e-6 * np.pi * (d**2) * n
-        self.update()
+        self.ox_CdA = self.ox_A * Cd
 
     def spi_fuel_mdot(self, dp, fuel_rho):
         """
@@ -1107,6 +1174,24 @@ class injector():
         """
         return self.fuel_CdA * np.sqrt(2e5 * dp * fuel_rho)
     
+    def spi_fuel_dp(self, mdot, fuel_rho):
+        """
+        Calculates the pressure differential across the fuel injector orifice using the single phase incompressible model.
+
+        Parameters
+        ----------
+        mdot : float
+            Fuel mass flow rate (kg/s)
+        fuel_rho : float
+            Density of the fuel (kg/m^3)
+
+        Returns
+        -------
+        float
+            Pressure differential across the injector orifice (bar)
+        """
+        return ((mdot / self.fuel_CdA)**2) / (2e5 * fuel_rho)
+
     def spi_ox_mdot(self, dp, ox_rho):
         """
         Calculates the oxidiser mass flow rate through the injector using the single phase incompressible model.
@@ -1124,6 +1209,24 @@ class injector():
             Oxidiser mass flow rate (kg/s)
         """
         return self.ox_CdA * np.sqrt(2e5 * dp * ox_rho)
+
+    def spi_ox_dp(self, mdot, ox_rho):
+        """
+        Calculates the pressure differential across the oxidizer injector orifice using the single phase incompressible model.
+
+        Parameters
+        ----------
+        mdot : float
+            Oxidizer mass flow rate (kg/s)
+        ox_rho : float
+            Density of the oxidizer (kg/m^3)
+
+        Returns
+        -------
+        float
+            Pressure differential across the injector orifice (bar)
+        """
+        return ((mdot / self.ox_CdA)**2) / (2e5 * ox_rho)
 
     def calc_start_mdot(self, fuel_inj_p, ox_inj_p, fuel_rho=786, ox_rho=860, ox_gas_class=None, ox_temp=15, fuel_gas_class=None, fuel_temp=15):
         """
@@ -1249,6 +1352,8 @@ class cea_fuel_water_mix:
         return f'{100-self.water_perc:.3g}% {self.alcohol} {self.water_perc:.3g}% Water'
 
 if __name__ == '__main__':
+    system('cls')
+
     plt.ion()
 
     # water_perc = 15
@@ -1262,7 +1367,6 @@ if __name__ == '__main__':
 
     fuelCd = 0.4
     oxCd = 0.65
-
 
     coax_inj_tank_p = injector()
     coax_inj_tank_p.size_fuel_holes(Cd = fuelCd, d = 0.2)

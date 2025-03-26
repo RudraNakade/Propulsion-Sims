@@ -7,7 +7,7 @@ system('cls')
 
 propane = Fluid(FluidsList.nPropane)
 
-T = np.linspace(-10, 20)  # nitrous.critical_temperature, 1000)
+T = np.linspace(propane.min_temperature, propane.critical_temperature, 1000)
 P = np.zeros(len(T))
 D_g = np.zeros(len(T))
 D_l = np.zeros(len(T))
@@ -18,6 +18,7 @@ for i, temp in enumerate(T):
     D_l[i] = propane.density
     propane.update(Input.temperature(temp), Input.quality(100))
     D_g[i] = propane.density
+
 
 fig, ax1 = plt.subplots()
 

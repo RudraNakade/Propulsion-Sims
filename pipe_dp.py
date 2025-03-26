@@ -1,5 +1,9 @@
 import numpy as np
 from scipy.optimize import root_scalar
+from pyfluids import Fluid, FluidsList, Input
+from os import system
+
+system('cls')
 
 in2mm = lambda x: x * 25.4
 mm2in = lambda x: x / 25.4
@@ -71,18 +75,25 @@ def pipe_dp(id, L, mdot, rho, dynamic_viscosity, roughness = -1, rel_roughness =
     
     return f * L * rho * v**2 / (2 * id)
 
-rho = 860
-mu = 0.101e-6 * rho
-id = 3.5 # in2mm(2/8 - 2*0.036)
-L = 24e-3
-pipe_rough = 0.015
-mdot = 0.177
+A = 1.5*0.4
+dh = np.sqrt(4*A/np.pi)
+
+fuel = Fluid(FluidsList.Ethanol)
+fuel.update(Input.temperature(60), Input.pressure(40e5))
+dyn_visc_f = fuel.dynamic_viscosity
+
+rho = 900
+mu = dyn_visc_f
+id = in2mm(0.5 - 2 * 0.036)
+L = 1e-3 * 730
+pipe_rough = 1e-3 * 0.5
+mdot = 2.4
 
 line_dp = pipe_dp(id, L, mdot, rho, mu, roughness=pipe_rough)
 
-print(f'Line ID: {id:.3f} mm, Length: {L:.3f} m, Flow rate: {mdot:.3f} kg/s')
+print(f'Line ID: {id:.3f} mm, Length: {L:.3f} m, Flow rate: {mdot:.4f} kg/s')
 print(f'Line DP: {line_dp/1e5:.3f} Bar')
 
-CdA = 1e6 * mdot / np.sqrt(2*line_dp*rho)
+CdA = 1e6 * mdot / np.sqrt(2 * line_dp * rho)
 
 print(f'CdA: {CdA:.3f} mm^2')

@@ -1,10 +1,11 @@
+from matplotlib.pylab import f
 import numpy as np
 from os import system
 
 system('cls')
 
-d_restriction = 4.0464 # mm
-d_pipe = 4.4 # mm
+d_restriction = 3.3 # mm
+d_pipe = 3.5 # mm
 ox_hole_d = 0.8 # mm
 ox_hole_n = 24
 
@@ -32,6 +33,8 @@ print(f'beta            = {beta:.3f}')
 print(f'restriction dp  = {dp_restriction/1e5:.3f} bar')
 print(f'inj dp          = {dp_inj/1e5:.3f} bar')
 print(f'total dp        = {(dp_restriction + dp_inj)/1e5:.3f} bar')
-# print(f'total dp (using CdA_3) = {dp_3/1e5:.3f} bar')
 print(f'ratio           = {dp_restriction/dp_inj:.3f}')
-# print(f'ratio (using CdA_3) = {(dp_restriction + dp_inj)/dp_3:.3f}')
+
+print(f'Orifice CdA     = {CdA_1:.3e} m^2')
+print(f'Injector CdA    = {CdA_2:.3e} m^2')
+print(f'Combined CdA    = {CdA_3:.3e} m^2')

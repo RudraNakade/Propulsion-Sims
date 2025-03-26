@@ -20,8 +20,8 @@ def calculate_flow_rates(T, P_tank, P_chamber, A_eff, Cd, Cd_SPI):
     # Get vapor pressure at this temperature
     nitrous_up.update(Input.temperature(T), Input.quality(0))
     nitrous_vp = nitrous_up.pressure
-    P_up_fixed = nitrous_vp + 5e5  # 10 bar above vapor pressure
-    P_down_fixed = 25e5
+    P_up_fixed = 50e5 # 10 bar above vapor pressure
+    P_down_fixed = 24e5
     
     # Calculate upstream varying flow rates
     for i, P_up in enumerate(P_tank):
@@ -76,13 +76,13 @@ def calculate_flow_rates(T, P_tank, P_chamber, A_eff, Cd, Cd_SPI):
 # Setup
 temperatures = [-10, -5, 0, 5, 10, 15]
 N = 100
-Cd = 0.6
+Cd = 0.05
 Cd_SPI = 0.4
-n_holes = 24
-d_hole = 1e-3 * 0.7
-A_Inj = n_holes * np.pi * (d_hole / 2) ** 2
-A_orifice = np.pi * (3.3e-3 / 2) ** 2
-A_eff = 1/(1/A_Inj + 1/A_orifice)
+n_holes = 48
+d_hole = 1e-3 * 1.5
+A_inj = n_holes * np.pi * (d_hole / 2) ** 2
+# A_orifice = np.pi * (3.3e-3 / 2) ** 2
+# A_eff = 1/(1/A_inj + 1/A_orifice)
 
 # Create figures for each temperature
 for T in temperatures:
@@ -90,10 +90,10 @@ for T in temperatures:
     nitrous_up.update(Input.temperature(T), Input.quality(0))
     nitrous_vp = nitrous_up.pressure
     
-    P_tank = np.linspace(nitrous_vp + 1e5, 50e5, N)
-    P_chamber = np.linspace(1e5, nitrous_vp - 1e5, N)
+    P_tank = np.linspace(nitrous_vp + 0.1e5, 50e5, N)
+    P_chamber = np.linspace(1e5, nitrous_vp +5e5, N)
     
-    results = calculate_flow_rates(T, P_tank, P_chamber, A_eff, Cd, Cd_SPI)
+    results = calculate_flow_rates(T, P_tank, P_chamber, A_inj, Cd, Cd_SPI)
     (mdot_spi_up, mdot_spi_adj_up, mdot_hem_up, mdot_nhne_up,
      mdot_spi_down, mdot_spi_adj_down, mdot_hem_down, mdot_nhne_down,
      P_up_fixed, P_down_fixed, nitrous_vp) = results
