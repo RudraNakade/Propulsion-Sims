@@ -1,4 +1,3 @@
-from matplotlib.pylab import f
 from rocketcea.cea_obj_w_units import CEA_Obj
 from rocketcea.cea_obj import add_new_fuel
 from pyfluids import Fluid, FluidsList, Mixture, Input
@@ -38,46 +37,46 @@ psi2bar = lambda x: x / 14.5038
 bar2psi = lambda x: x * 14.5038
 
 def OFsweep(fuel, ox, OFstart, OFend, pc, pe, cr, pamb=1.01325, showvacisp=False, filmcooled=False, film_perc=0):
-        """
-        Performs a sweep analysis of the engine performance across a range of OF ratios and plots the ISP and chamber temperature.
-        
-        Parameters
-        ----------
-        fuel : str
-            Fuel name (e.g., 'Isopropanol', 'Ethanol')
-        ox : str
-            Oxidizer name (e.g., 'N2O', 'LOX')
-        OFstart : float
-            Starting value for OF ratio
-        OFend : float
-            Ending value for OF ratio
-        pc : float
-            Chamber pressure in bar
-        pe : float
-            Exit pressure in bar
-        pamb : float
-            Ambient pressure in bar (default: 1.01325)
-        cr : float
-            Contraction ratio
-        showvacisp : bool, optional
-            Whether to display vacuum ISP on the plot (default: False)
-        filmcooled : bool, optional
-            Whether film cooling is being used (default: False)
-        film_perc : float, optional
-            Film cooling percentage (default: 0)
+        __doc__ = """
+            Performs a sweep analysis of the engine performance across a range of OF ratios and plots the ISP and chamber temperature.
             
-        Returns
-        -------
-        None
-            Creates and displays a plot with OF ratio on x-axis,
-            ISP values on primary y-axis and chamber temperature on secondary y-axis.
-            
-        Notes
-        -----
-        This method dynamically adjusts the expansion ratio (eps) for each OF value
-        to maintain the specified pressure ratio between chamber and exit.
-        If filmcooled=True, it also calculates and plots the corrected ISP accounting
-        for the performance loss due to film cooling.
+            Parameters
+            ----------
+            fuel : str
+                Fuel name (e.g., 'Isopropanol', 'Ethanol')
+            ox : str
+                Oxidizer name (e.g., 'N2O', 'LOX')
+            OFstart : float
+                Starting value for OF ratio
+            OFend : float
+                Ending value for OF ratio
+            pc : float
+                Chamber pressure in bar
+            pe : float
+                Exit pressure in bar
+            pamb : float
+                Ambient pressure in bar (default: 1.01325)
+            cr : float
+                Contraction ratio
+            showvacisp : bool, optional
+                Whether to display vacuum ISP on the plot (default: False)
+            filmcooled : bool, optional
+                Whether film cooling is being used (default: False)
+            film_perc : float, optional
+                Film cooling percentage (default: 0)
+                
+            Returns
+            -------
+            None
+                Creates and displays a plot with OF ratio on x-axis,
+                ISP values on primary y-axis and chamber temperature on secondary y-axis.
+                
+            Notes
+            -----
+            This method dynamically adjusts the expansion ratio (eps) for each OF value
+            to maintain the specified pressure ratio between chamber and exit.
+            If filmcooled=True, it also calculates and plots the corrected ISP accounting
+            for the performance loss due to film cooling.
         """
         film_frac = film_perc * 1e-2
 
@@ -212,6 +211,55 @@ class engine:
             make_debug_prints=False)
 
     def combustion_sim(self, fuel, ox, OF, pc, pamb = 1.01325, cstar_eff = 1, sizing=False, **kwargs):
+        __doc__ = """Simulates combustion of the engine and optionally sizes the engine.
+            Parameters:
+            -----------
+            fuel : str
+                Fuel propellant name
+            ox : str 
+                Oxidizer propellant name
+            OF : float
+                OF Ratio
+            pc : float
+                Chamber pressure in bar
+            pamb : float, optional
+                Ambient pressure in bar, default is 1.01325 (sea level)
+            cstar_eff : float, optional
+                Characteristic velocity efficiency, default is 1.0 (100%)
+            sizing : bool, optional
+                If True, performs engine sizing calculations, default is False
+            **kwargs : dict
+                Additional parameters required if sizing=True:
+                - thrust : float
+                    Desired thrust in Newtons
+                - pe : float
+                    Exit pressure in bar
+                - cr : float
+                    Contraction ratio (Ac/At)
+                - conv_angle : float
+                    Convergent angle in degrees
+                - lstar : float
+                    Characteristic chamber length in meters
+                - rao_percentage : float
+                    Percentage of the bell nozzle (Rao approximation)
+            Returns:
+            --------
+            None
+                Updates various engine performance attributes:
+                - Performance: isp, cstar, cf, thrust, etc.
+                - Mass Flow rates: mdot, ox_mdot, fuel_mdot
+                - Gas properties: temperatures, pressures, transport properties
+                - If sizing=True: engine dimensions and contour geometry
+            Raises:
+            -------
+            ValueError
+                If L* is too short or contraction ratio is too high during sizing
+            Notes:
+            ------
+            This method uses CEA (Chemical Equilibrium with Applications) to simulate
+            engine performance. When sizing=True, it also generates the engine geometry
+            including chamber and nozzle contours.
+            """
         self.fuel = fuel
         self.ox = ox
         self.OF = OF
@@ -332,9 +380,9 @@ class engine:
         self.ox_inj_p = self.pc + self.ox_dp
 
     def system_combustion_sim(self, fuel, ox, fuel_core_CdA, ox_CdA, fuel_upstream_p, ox_upstream_p, pamb = 1.01325, film_frac = 0, fuel_rho=786, ox_rho=860, ox_gas_class=None, ox_temp=15, fuel_gas_class=None, fuel_temp=15, cstar_eff=1, n_max=100):
-        """Combustion sim based on injector pressures.\n
-        Required Inputs: fuel, ox, fuel_upstream_p, ox_upstream_p, film_frac, fuel_rho, ox_rho\n
-        Optional Inputs: oxclass, ox_gas, ox_temp, fuelclass, fuel_gas, fuel_temp"""
+        __doc__ = """Combustion sim based on injector pressures.\n
+            Required Inputs: fuel, ox, fuel_upstream_p, ox_upstream_p, film_frac, fuel_rho, ox_rho\n
+            Optional Inputs: oxclass, ox_gas, ox_temp, fuelclass, fuel_gas, fuel_temp"""
 
         self.fuel = fuel
         self.ox = ox
@@ -903,7 +951,7 @@ class engine:
         self.filmplot.addline(3, self.x*1e3, self.film_mdot_g, 'r', label='Gas Film mdot (kg/s)')
         self.filmplot.plt(4, self.x*1e3, self.filmstate, 'Film State','Axial Distance (mm)','Film State','b', True)#
 
-    def combustion_sim_sens_study(self, param, param_range, fuel, ox, fuel_inj_p, ox_inj_p, fuel_rho, ox_rho, oxclass, ox_can_choke=False, ox_temp=15, fuel_can_choke=False, fuel_temp=15):
+    def system_sim_sensitivity(self, param, param_range, fuel, ox, fuel_inj_p, ox_inj_p, fuel_rho, ox_rho, oxclass, ox_can_choke=False, ox_temp=15, fuel_can_choke=False, fuel_temp=15):
         pc = np.array([])
         thrust = np.array([])
         OF = np.array([])
@@ -987,392 +1035,486 @@ class engine:
         ax4.legend(['Total', 'Ox', 'Fuel'])
 
 class injector():
-    """A class representing a bipropellant injector for a rocket engine.
-    The injector class provides methods to size both fuel and oxidizer injector elements 
-    and calculate propellant flow rates through these elements. It supports various injector 
-    configurations including annular holes and circular holes.
+    __doc__ = """A class representing a bipropellant injector for a rocket engine.
+        The injector class provides methods to size both fuel and oxidizer injector elements 
+        and calculate propellant flow rates through these elements. It supports various injector 
+        configurations including annular holes and circular holes.
 
-    Attributes
-    fuel_A : float
-        Fuel injector total area in square meters.
+        Attributes
+        fuel_A : float
+            Fuel injector total area in square meters.
 
-    fuel_Cd : float
-        Fuel injector discharge coefficient, default 0.75.
+        fuel_Cd : float
+            Fuel injector discharge coefficient, default 0.75.
 
-    ox_A : float
-        Oxidizer injector total area in square meters.
+        ox_A : float
+            Oxidizer injector total area in square meters.
 
-    ox_Cd : float
-        Oxidizer injector discharge coefficient, default 0.4.
+        ox_Cd : float
+            Oxidizer injector discharge coefficient, default 0.4.
 
-    fuel_CdA : float
-        Product of fuel discharge coefficient and area.
+        fuel_CdA : float
+            Product of fuel discharge coefficient and area.
 
-    ox_CdA : float
-        Product of oxidizer discharge coefficient and area.
+        ox_CdA : float
+            Product of oxidizer discharge coefficient and area.
 
-    Methods
+        Methods
 
-    size_fuel_anulus(Cd, ID, OD, n=1)
-        Sizes fuel injector for annular holes.
+        size_fuel_anulus(Cd, ID, OD, n=1)
+            Sizes fuel injector for annular holes.
 
-    size_ox_anulus(Cd, ID, OD, n=1)
-        Sizes oxidizer injector for annular holes.
+        size_ox_anulus(Cd, ID, OD, n=1)
+            Sizes oxidizer injector for annular holes.
 
-    size_fuel_holes(Cd, d, n=1)
-        Sizes fuel injector for circular holes.
+        size_fuel_holes(Cd, d, n=1)
+            Sizes fuel injector for circular holes.
 
-    size_ox_holes(Cd, d, n=1)
-        Sizes oxidizer injector for circular holes.
+        size_ox_holes(Cd, d, n=1)
+            Sizes oxidizer injector for circular holes.
 
-    spi_fuel_mdot(dp, fuel_rho)
-        Calculates fuel mass flow rate using single phase incompressible model.
+        spi_fuel_mdot(dp, fuel_rho)
+            Calculates fuel mass flow rate using single phase incompressible model.
 
-    spi_ox_mdot(dp, ox_rho)
-        Calculates oxidizer mass flow rate using single phase incompressible model.
+        spi_ox_mdot(dp, ox_rho)
+            Calculates oxidizer mass flow rate using single phase incompressible model.
 
-    calc_start_mdot(fuel_inj_p, ox_inj_p, fuel_rho=786, ox_rho=860, ox_gas_class=None, 
-                   ox_temp=15, fuel_gas_class=None, fuel_temp=15)
-        Calculates starting mass flow rates for injector venting to atmosphere.
-        Supports both incompressible liquid and compressible gas calculations.
-    Notes
-    -----
-    The class converts input dimensions in millimeters to meters internally.
-    For gas propellants, the class can calculate choked flow conditions."""
+        calc_start_mdot(fuel_inj_p, ox_inj_p, fuel_rho=786, ox_rho=860, ox_gas_class=None, 
+                    ox_temp=15, fuel_gas_class=None, fuel_temp=15)
+            Calculates starting mass flow rates for injector venting to atmosphere.
+            Supports both incompressible liquid and compressible gas calculations.
+        Notes
+        -----
+        The class converts input dimensions in millimeters to meters internally.
+        For gas propellants, the class can calculate choked flow conditions."""
 
     def __init__(self):
         self.film_CdA = 0
         self.film_frac = 0
 
-    def set_fuel_CdA(self, CdA):
-        """
-        Sets the fuel injector CdA.
+    def calc_film(self):
+        __doc__ = """
+            Calculates the film cooling fraction and total fuel CdA.
+            """
+        if self.fuel_core_CdA is None:
+            raise ValueError("Core fuel CdA must be set before calculating film fraction.")
+        self.film_frac = self.film_CdA / self.fuel_core_CdA
+        self.fuel_total_CdA = self.fuel_core_CdA + self.film_CdA
 
-        Parameters
-        ----------
-        CdA : float
-            Product of fuel discharge coefficient and area.
-        """
+    def set_fuel_CdA(self, CdA):
+        __doc__ = """
+            Sets the fuel injector CdA.
+
+            Parameters
+            ----------
+            CdA : float
+                Product of fuel discharge coefficient and area.
+            """
         self.fuel_core_CdA = CdA
         self.calc_film()
 
     def set_ox_CdA(self, CdA):
-        """
-        Sets the oxidizer injector CdA.
+        __doc__ = """
+            Sets the oxidizer injector CdA.
 
-        Parameters
-        ----------
-        CdA : float
-            Product of oxidizer discharge coefficient and area.
-        """
+            Parameters
+            ----------
+            CdA : float
+                Product of oxidizer discharge coefficient and area.
+            """
         self.ox_CdA = CdA
 
-    def calc_film(self):
-        """
-        Calculates the film cooling fraction based on the fuel and oxidizer mass flow rates.
-        """
-        if self.fuel_core_CdA is None:
-            raise ValueError("Fuel and oxidizer CdA must be set before calculating film fraction.")
-        self.film_frac = self.film_CdA / self.fuel_core_CdA
-        self.fuel_total_CdA = self.fuel_core_CdA + self.film_CdA
-
     def set_film_CdA(self, CdA):
-        """
-        Sets the film cooling injector CdA.
+        __doc__ = """
+            Sets the film cooling injector CdA.
 
-        Parameters
-        ----------
-        CdA : float
-            Product of film cooling discharge coefficient and area.
-        """
+            Parameters
+            ----------
+            CdA : float
+                Product of film cooling discharge coefficient and area.
+            """
         self.film_CdA = CdA
         self.calc_film()
 
     def size_fuel_anulus(self, Cd, ID, OD, n = 1):
-        """
-        Sizes fuel injector for a number of identical annular holes.
+        __doc__ = """
+            Sizes fuel injector for a number of identical annular holes.
 
-        Parameters
-        ----------
-        Cd : float
-            Discharge coefficient for the fuel annulus.
-        ID : float
-            Inner diameter of the annulus in millimeters.
-        OD : float
-            Outer diameter of the annulus in millimeters.
-        n : int, optional
-            Number of annular holes (default 1).
-        """
+            Parameters
+            ----------
+            Cd : float
+                Discharge coefficient for the fuel annulus.
+            ID : float
+                Inner diameter of the annulus in millimeters.
+            OD : float
+                Outer diameter of the annulus in millimeters.
+            n : int, optional
+                Number of annular holes (default 1).
+            """
         self.fuel_Cd = Cd
         self.fuel_A = 0.25e-6 * np.pi * (OD**2 - ID**2) * n
         self.fuel_core_CdA = self.fuel_A * Cd
         self.calc_film()
     
     def size_ox_anulus(self, Cd, ID, OD, n = 1):
-        """
-        Sizes oxidizer injector for a number of identical annular holes.
+        __doc__ = """
+            Sizes oxidizer injector for a number of identical annular holes.
 
-        Parameters
-        ----------
-        Cd : float
-            Discharge coefficient for the oxidizer annulus.
-        ID : float
-            Inner diameter of the annulus in millimeters.
-        OD : float
-            Outer diameter of the annulus in millimeters.
-        n : int, optional
-            Number of annular holes (default 1).
-        """
+            Parameters
+            ----------
+            Cd : float
+                Discharge coefficient for the oxidizer annulus.
+            ID : float
+                Inner diameter of the annulus in millimeters.
+            OD : float
+                Outer diameter of the annulus in millimeters.
+            n : int, optional
+                Number of annular holes (default 1).
+            """
         self.ox_Cd = Cd
         self.ox_A = 0.25e-6 * np.pi * (OD**2 - ID**2) * n
         self.ox_CdA = self.ox_A * Cd
 
     def size_fuel_holes(self, Cd, d, n = 1):
-        """
-        Sizes the fuel injector for a number of identical holes.
+        __doc__ = """
+            Sizes the fuel injector for a number of identical holes.
 
-        Parameters
-        ----------
-        Cd : float
-            Discharge coefficient for the fuel holes.
-        d : float
-            Hole diameter in millimeters.
-        n : int, optional
-            Number of fuel holes (default 1).
-        """
+            Parameters
+            ----------
+            Cd : float
+                Discharge coefficient for the fuel holes.
+            d : float
+                Hole diameter in millimeters.
+            n : int, optional
+                Number of fuel holes (default 1).
+            """
         self.fuel_Cd = Cd
         self.fuel_A = 0.25e-6 * np.pi * (d**2) * n
         self.fuel_core_CdA = self.fuel_A * Cd
         self.calc_film()
     
-    def size_ox_holes(self, Cd, d, n = 1):
-        """
-        Sizes the oxidizer injector for a number of identical holes.
-
-        Parameters
-        ----------
-        Cd : float
-            Discharge coefficient for the oxidizer holes.
-        d : float
-            Hole diameter in millimeters.
-        n : int, optional
-            Number of oxidizer holes (default 1).
-        """
-        self.ox_Cd = Cd
-        self.ox_A = 0.25e-6 * np.pi * (d**2) * n
-        self.ox_CdA = self.ox_A * Cd
-
     def size_film_holes(self, Cd, d, n = 1):
-        """
-        Sizes the film cooling injector for a number of identical holes.
+        __doc__ = """
+            Sizes the film cooling injector for a number of identical holes.
 
-        Parameters
-        ----------
-        Cd : float
-            Discharge coefficient for the film cooling holes.
-        d : float
-            Hole diameter in millimeters.
-        n : int, optional
-            Number of film cooling holes (default 1).
-        """
+            Parameters
+            ----------
+            Cd : float
+                Discharge coefficient for the film cooling holes.
+            d : float
+                Hole diameter in millimeters.
+            n : int, optional
+                Number of film cooling holes (default 1).
+            """
         self.film_Cd = Cd
         self.film_A = 0.25e-6 * np.pi * (d**2) * n
         self.film_CdA = self.film_A * Cd
         self.calc_film()
 
+    def size_ox_holes(self, Cd, d, n = 1):
+        __doc__ = """
+            Sizes the oxidizer injector for a number of identical holes.
+
+            Parameters
+            ----------
+            Cd : float
+                Discharge coefficient for the oxidizer holes.
+            d : float
+                Hole diameter in millimeters.
+            n : int, optional
+                Number of oxidizer holes (default 1).
+            """
+        self.ox_Cd = Cd
+        self.ox_A = 0.25e-6 * np.pi * (d**2) * n
+        self.ox_CdA = self.ox_A * Cd
+
     def spi_fuel_core_mdot(self, dp, fuel_rho):
-        """
-        Calculates the core fuel mass flow rate through the injector using the single phase incompressible model.
+        __doc__ = """
+            Calculates the core fuel mass flow rate through the injector using the single phase incompressible model.
 
-        Parameters
-        ----------
-        dp : float
-            Pressure differential across the injector orifice (bar)
-        fuel_rho : float
-            Density of the fuel (kg/m^3)
+            Parameters
+            ----------
+            dp : float
+                Pressure differential across the injector orifice (bar)
+            fuel_rho : float
+                Density of the fuel (kg/m^3)
 
-        Returns
-        -------
-        float
-            Fuel mass flow rate (kg/s)
-        """
+            Returns
+            -------
+            float
+                Fuel mass flow rate (kg/s)
+            """
         return self.fuel_core_CdA * np.sqrt(2e5 * dp * fuel_rho)
     
     def spi_fuel_total_mdot(self, dp, fuel_rho):
-        """
-        Calculates the total fuel mass flow rate through the injector using the single phase incompressible model.
+        __doc__ = """
+            Calculates the total fuel mass flow rate through the injector using the single phase incompressible model.
 
-        Parameters
-        ----------
-        dp : float
-            Pressure differential across the injector orifice (bar)
-        fuel_rho : float
-            Density of the fuel (kg/m^3)
+            Parameters
+            ----------
+            dp : float
+                Pressure differential across the injector orifice (bar)
+            fuel_rho : float
+                Density of the fuel (kg/m^3)
 
-        Returns
-        -------
-        float
-            Total fuel mass flow rate (kg/s)
-        """
+            Returns
+            -------
+            float
+                Total fuel mass flow rate (kg/s)
+            """
         return self.fuel_total_CdA * np.sqrt(2e5 * dp * fuel_rho)
 
+    def spi_film_mdot(self, dp, film_rho):
+        __doc__ = """
+            Calculates the film cooling mass flow rate through the injector using the single phase incompressible model.
+
+            Parameters
+            ----------
+            dp : float
+                Pressure differential across the injector orifice (bar)
+            film_rho : float
+                Density of the film coolant (kg/m^3)
+
+            Returns
+            -------
+            float
+                Film cooling mass flow rate (kg/s)
+            """
+        return self.film_CdA * np.sqrt(2e5 * dp * film_rho)
+
+    def spi_ox_mdot(self, dp, ox_rho):
+        __doc__ = """
+            Calculates the oxidiser mass flow rate through the injector using the single phase incompressible model.
+
+            Parameters
+            ----------
+            dp : float
+                Pressure differential across the injector orifice (bar)
+            ox_rho : float
+                Density of the oxidiser (kg/m^3)
+
+            Returns
+            -------
+            float
+                Oxidiser mass flow rate (kg/s)
+            """
+        return self.ox_CdA * np.sqrt(2e5 * dp * ox_rho)
+
     def spi_fuel_core_dp(self, mdot, fuel_rho):
-        """
-        Calculates the pressure differential across the fuel injector orifice using the single phase incompressible model.
+        __doc__ = """
+            Calculates the pressure differential across the fuel injector orifice using the single phase incompressible model.
 
-        Parameters
-        ----------
-        mdot : float
-            Fuel mass flow rate (kg/s)
-        fuel_rho : float
-            Density of the fuel (kg/m^3)
+            Parameters
+            ----------
+            mdot : float
+                Fuel mass flow rate (kg/s)
+            fuel_rho : float
+                Density of the fuel (kg/m^3)
 
-        Returns
-        -------
-        float
-            Pressure differential across the injector orifice (bar)
-        """
+            Returns
+            -------
+            float
+                Pressure differential across the injector orifice (bar)
+            """
         return ((mdot / self.fuel_core_CdA)**2) / (2e5 * fuel_rho)
 
     def spi_fuel_total_dp(self, mdot, fuel_rho):
-        """
-        Calculates the pressure differential across the total fuel injector orifice using the single phase incompressible model.
+        __doc__ = """
+            Calculates the pressure differential across the total fuel injector orifice using the single phase incompressible model.
 
-        Parameters
-        ----------
-        mdot : float
-            Total fuel mass flow rate (kg/s)
-        fuel_rho : float
-            Density of the fuel (kg/m^3)
+            Parameters
+            ----------
+            mdot : float
+                Total fuel mass flow rate (kg/s)
+            fuel_rho : float
+                Density of the fuel (kg/m^3)
 
-        Returns
-        -------
-        float
-            Pressure differential across the injector orifice (bar)
-        """
+            Returns
+            -------
+            float
+                Pressure differential across the injector orifice (bar)
+            """
         return ((mdot / self.fuel_total_CdA)**2) / (2e5 * fuel_rho)
 
-    def spi_ox_mdot(self, dp, ox_rho):
-        """
-        Calculates the oxidiser mass flow rate through the injector using the single phase incompressible model.
+    def spi_film_dp(self, mdot, film_rho):
+        __doc__ = """
+            Calculates the pressure differential across the film cooling injector orifice using the single phase incompressible model.
 
-        Parameters
-        ----------
-        dp : float
-            Pressure differential across the injector orifice (bar)
-        ox_rho : float
-            Density of the oxidiser (kg/m^3)
+            Parameters
+            ----------
+            mdot : float
+                Film cooling mass flow rate (kg/s)
+            film_rho : float
+                Density of the film coolant (kg/m^3)
 
-        Returns
-        -------
-        float
-            Oxidiser mass flow rate (kg/s)
-        """
-        return self.ox_CdA * np.sqrt(2e5 * dp * ox_rho)
-    
-    def hem_ox_mdot(self, dp, ox_rho, h1, h2):
-        """
-        Calculates the oxidiser mass flow rate through the injector using the homogenous equlibrium model (HEM).
-
-        Parameters
-        ----------
-        dp : float
-            Pressure differential across the injector orifice (bar)
-        ox_rho : float
-            Density of the oxidiser (kg/m^3)
-        h1 : float
-            Upstream enthalpy (J/kg)
-        h2 : float
-            Downstream enthalpy (J/kg)
-
-        Returns
-        -------
-        float
-            Oxidiser mass flow rate (kg/s)
-        """
-        return self.ox_CdA * np.sqrt(2e5 * dp * ox_rho) - h1 - h2
-
+            Returns
+            -------
+            float
+                Pressure differential across the injector orifice (bar)
+            """
+        return ((mdot / self.film_CdA)**2) / (2e5 * film_rho)
+   
     def spi_ox_dp(self, mdot, ox_rho):
-        """
-        Calculates the pressure differential across the oxidizer injector orifice using the single phase incompressible model.
+        __doc__ = """
+            Calculates the pressure differential across the oxidizer injector orifice using the single phase incompressible model.
 
-        Parameters
-        ----------
-        mdot : float
-            Oxidizer mass flow rate (kg/s)
-        ox_rho : float
-            Density of the oxidizer (kg/m^3)
+            Parameters
+            ----------
+            mdot : float
+                Oxidizer mass flow rate (kg/s)
+            ox_rho : float
+                Density of the oxidizer (kg/m^3)
 
-        Returns
-        -------
-        float
-            Pressure differential across the injector orifice (bar)
-        """
+            Returns
+            -------
+            float
+                Pressure differential across the injector orifice (bar)
+            """
         return ((mdot / self.ox_CdA)**2) / (2e5 * ox_rho)
     
-    def spi_film_mdot(self, dp, film_rho):
-        """
-        Calculates the film cooling mass flow rate through the injector using the single phase incompressible model.
+    def ox_flow_setup(self, ox_class, ox_downstream_p, ox_upstream_p, ox_upstream_T, ox_vp):
+        self.ox_downstream_p = ox_downstream_p
+        self.ox_upstream_p = ox_upstream_p
+        self.ox_upstream_T = ox_upstream_T
+        self.ox_vp = ox_vp
 
-        Parameters
-        ----------
-        dp : float
-            Pressure differential across the injector orifice (bar)
-        film_rho : float
-            Density of the film coolant (kg/m^3)
+        self.ox_downstream_p *= 1e5
 
-        Returns
-        -------
-        float
-            Film cooling mass flow rate (kg/s)
-        """
-        return self.film_CdA * np.sqrt(2e5 * dp * film_rho)
-    
-    def spi_film_dp(self, mdot, film_rho):
-        """
-        Calculates the pressure differential across the film cooling injector orifice using the single phase incompressible model.
+        self.ox_up = Fluid(ox_class)
+        self.ox_down = Fluid(ox_class)
 
-        Parameters
-        ----------
-        mdot : float
-            Film cooling mass flow rate (kg/s)
-        film_rho : float
-            Density of the film coolant (kg/m^3)
+        if ox_upstream_p == None:
+            self.ox_saturated = True
+        else:
+            self.ox_saturated = False
+            self.ox_upstream_p *= 1e5
+        
+        if self.ox_upstream_T == None and self.ox_vp == None:
+            raise ValueError("Either upstream_T or vp must be provided.")
+        elif self.ox_upstream_T is not None and self.ox_vp is not None:
+            raise ValueError("Both upstream_T and vp cannot be provided.")
+        elif self.ox_upstream_T is not None:
+            if self.ox_saturated:
+                self.ox_up.update(Input.temperature(self.ox_upstream_T), Input.quality(0))
+                self.ox_vp = self.ox_up.pressure
+                self.ox_upstream_p = self.ox_vp
+            else:
+                self.ox_up.update(Input.temperature(self.ox_upstream_T), Input.pressure(self.ox_upstream_p))
+        elif self.ox_vp is not None:
+            self.ox_vp *= 1e5
+            self.ox_up.update(Input.pressure(self.ox_vp), Input.quality(0))
+            self.ox_upstream_T = self.ox_up.temperature
+            if self.ox_saturated:
+                self.ox_upstream_p = self.ox_vp + 10
+            else:
+                self.ox_up.update(Input.temperature(self.ox_upstream_T), Input.pressure(self.ox_upstream_p))
+        
+        self.ox_down.update(Input.pressure(self.ox_downstream_p), Input.entropy(self.ox_up.entropy))
 
-        Returns
-        -------
-        float
-            Pressure differential across the injector orifice (bar)
-        """
-        return ((mdot / self.film_CdA)**2) / (2e5 * film_rho)
+    def hem_ox_mdot(self, ox_class, downstream_p, upstream_p=None, upstream_T = None, vp = None):
+        __doc__ = """
+            Calculates the oxidizer mass flow rate using the HEM model.
+            Used for fluids that can exhibit two phase flow.
+
+            Parameters
+            ----------
+            ox_class : object
+                pyfluids object for oxidizer
+            downstream_p : float
+                Downstream pressure (bar)
+            upstream_p : float, optional
+                Upstream pressure (bar), defaults to None
+            upstream_T : float, optional
+                Upstream temperature (°C), defaults to None
+            vp : float, optional
+                Vapor pressure (bar), defaults to None
+
+            Returns
+            -------
+            float
+                Oxidizer mass flow rate (kg/s)
+            """
+
+        self.ox_flow_setup(ox_class, downstream_p, upstream_p, upstream_T, vp)
+
+        def HEMfunc(up, down, downstream_p):
+            down.update(Input.pressure(downstream_p), Input.entropy(up.entropy))
+            return self.ox_CdA * down.density * np.sqrt(2 * (up.enthalpy - down.enthalpy))
+
+        sol = sp.optimize.minimize_scalar(lambda x: -HEMfunc(self.ox_up, self.ox_down, x), bounds=[0,self.ox_upstream_p], method='bounded')
+
+        self.ox_choked_p = sol.x
+        choked_mdot = -sol.fun
+
+        if (self.ox_choked_p > self.ox_downstream_p):
+            mdot = choked_mdot
+        else:
+            mdot = HEMfunc(self.ox_up, self.ox_down, self.ox_downstream_p)
+
+        mdot = 0 if np.isnan(mdot) else mdot
+
+        return mdot
+
+    def nhne_ox_mdot(self, ox_class, downstream_p, upstream_p=None, upstream_T = None, vp = None):
+        __doc__ = """
+            Calculates the oxidizer mass flow rate using the NHNE model.
+            Used for fluids that can exhibit two phase flow.
+
+            Parameters
+            ----------
+            ox_class : object
+                pyfluids object for oxidizer
+            downstream_p : float
+                Downstream pressure (bar)
+            upstream_p : float, optional
+                Upstream pressure (bar), defaults to None
+            upstream_T : float, optional
+                Upstream temperature (°C), defaults to None
+            vp : float, optional
+                Vapor pressure (bar), defaults to None
+
+            Returns
+            -------
+            float
+                Oxidizer mass flow rate (kg/s)
+            """
+
+        HEM_mdot = self.hem_ox_mdot(ox_class, downstream_p, upstream_p, upstream_T, vp)
+        SPI_mdot = self.spi_ox_mdot((self.ox_upstream_p - self.ox_downstream_p)/1e5, self.ox_up.density)
+
+        k = np.sqrt((self.ox_upstream_p - self.ox_downstream_p) / (self.ox_vp - self.ox_downstream_p)) if self.ox_downstream_p < self.ox_vp else 1
+
+        mdot = (SPI_mdot* k / (1 + k)) + (HEM_mdot / (1 + k))
+
+        return mdot
 
     def calc_start_mdot(self, fuel_inj_p, ox_inj_p, fuel_rho=786, ox_rho=860, ox_gas_class=None, ox_temp=15, fuel_gas_class=None, fuel_temp=15):
-        """
-        Calculates the starting mdots for the injector (venting to atm).
-        Disregards film cooling.
-        ----------
-        fuel_inj_p : float
-            Fuel injector pressure (bar)
-        ox_inj_p : float
-            Oxidizer injector pressure (bar)
-        fuel_rho : float, optional
-            Fuel density in kg/m³, defaults to 786
-        ox_rho : float, optional
-            Oxidizer density in kg/m³, defaults to 860 (used only if oxclass is None)
-        oxclass : object, optional
-            pyfluids object for oxidizer
-            If provided, compressible flow calculations will be used for oxidizer
-        ox_temp : float, optional
-            Oxidizer temperature in °C, defaults to 15 (used only if oxclass is provided)
-        Returns
-        -------
-        None
-            Results are printed directly:
-            - Total mass flow rate (g/s)
-            - Oxidizer mass flow rate (g/s) and whether flow is choked
-            - Fuel mass flow rate (g/s)
-            - Oxidizer to fuel ratio (OF)
-        """
+        __doc__ = """
+            Calculates the starting mdots for the injector (venting to atm).
+            Disregards film cooling.
+            ----------
+            fuel_inj_p : float
+                Fuel injector pressure (bar)
+            ox_inj_p : float
+                Oxidizer injector pressure (bar)
+            fuel_rho : float, optional
+                Fuel density in kg/m³, defaults to 786
+            ox_rho : float, optional
+                Oxidizer density in kg/m³, defaults to 860 (used only if oxclass is None)
+            oxclass : object, optional
+                pyfluids object for oxidizer
+                If provided, compressible flow calculations will be used for oxidizer
+            ox_temp : float, optional
+                Oxidizer temperature in °C, defaults to 15 (used only if oxclass is provided)
+            Returns
+            -------
+            None
+                Results are printed directly:
+                - Total mass flow rate (g/s)
+                - Oxidizer mass flow rate (g/s) and whether flow is choked
+                - Fuel mass flow rate (g/s)
+                - Oxidizer to fuel ratio (OF)
+            """
         ox_chokedstate = 'Unchoked'
         fuel_chokedstate = 'Unchoked'
         if ox_gas_class != None:

@@ -1,4 +1,3 @@
-from matplotlib import lines
 import enginesim as es
 import numpy as np
 import matplotlib.pyplot as plt
@@ -27,6 +26,7 @@ class ox_system:
     def __init__(self, fluid_class, fluid_name, tank_volume, system_CdA, p_supercharge=None, vp=None, T=None, ullage = 0):
         initial_V_l = tank_volume * (1 - ullage)
         initial_V_g = tank_volume * ullage
+        self.V = tank_volume
         self.pf = Fluid(fluid_class)
         self.CdA = system_CdA
         self.name = fluid_name
@@ -98,7 +98,7 @@ class prop_system:
         self.engine = engine
         self.cstar_eff = 1.0  # Default value, can be set later
 
-        self.total_fuel_CdA = total_CdA((injector.fuel_CdA + injector.film_CdA), fuel_system.CdA)
+        self.total_fuel_CdA = total_CdA(injector.fuel_total_CdA, fuel_system.CdA)
         self.total_ox_CdA = total_CdA(injector.ox_CdA, ox_system.CdA)
         self.film_frac = injector.film_frac
 
