@@ -9,11 +9,11 @@ d_pipe = 3.5 # mm
 ox_hole_d = 0.8 # mm
 ox_hole_n = 24
 
-Cd_low_dp = 0.4
-Cd_inj = 0.4
+Cd_low_dp = 0.3
+Cd_inj = 0.3
 
-rho = 860 # kg/m^3
-mdot = 0.177 # kg/s
+rho = 900 # kg/m^3
+mdot = 0.09 # kg/s
 
 A_restriction = 0.25e-6 * np.pi * d_restriction**2
 A_inj = 0.25e-6 * np.pi * (ox_hole_d)**2 * ox_hole_n

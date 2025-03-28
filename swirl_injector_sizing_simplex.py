@@ -52,7 +52,7 @@ print(f'Inlet Orifice Diameter: {d_inlet_orifice*1e3:.2f} mm')
 
 test = es.injector()
 test.size_fuel_holes(0.65, 1, 4 * 15)
-test_mdot = test.spi_fuel_mdot(dp_f/1e5, rho_f)
+test_mdot = test.spi_fuel_core_mdot(dp_f/1e5, rho_f)
 print(f'SPI fuel inlet orifice mdot: {test_mdot:.3f} kg/s')
 
 A_inlet = A_inlet_orifice * n_inlets

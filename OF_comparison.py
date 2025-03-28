@@ -3,13 +3,13 @@ from rocketcea.cea_obj_w_units import CEA_Obj
 from pyfluids import Fluid, FluidsList, Mixture, Input
 import matplotlib.pyplot as plt
 
-pc = 30
+pc = 100
 
 n_points = 100
 
-OFrange = np.linspace(.1, 6, 100)
+OFrange = np.linspace(.1, 7, 100)
 
-fuels = ['Methanol', 'Ethanol', 'Propane', 'Isopropanol', 'RP-1', 'CH4']
+fuels = ['Methanol', 'Ethanol', 'Propane', 'Isopropanol', 'RP-1', 'CH4', 'C2H6']
 n_fuels = len(fuels)
 ox = 'LOX'
 cr = 5

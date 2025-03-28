@@ -50,11 +50,11 @@ fuel_mass = fuel_rho * ullage * fuel_v * 1e-3
 fuel_time = fuel_mass / fuel_mdot
 
 for i in range(len(ox_inj)):
-    hopper.inj_p_combustion_sim(
+    hopper.system_combustion_sim(
         fuel = 'Isopropanol',
         ox = 'N2O',
-        fuel_inj_p = fuel_inj,
-        ox_inj_p = ox_inj[i],
+        fuel_upstream_p = fuel_inj,
+        ox_upstream_p = ox_inj[i],
         fuel_rho = 750,
         ox_rho = nitrous.density,
         ox_gas = False,

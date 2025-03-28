@@ -211,15 +211,13 @@ class engine:
             fac_CR=self.cr,
             make_debug_prints=False)
 
-    def combustion_sim(self, fuel, ox, OF, pc, cstar_eff = 1, sizing=False, **kwargs):
+    def combustion_sim(self, fuel, ox, OF, pc, pamb = 1.01325, cstar_eff = 1, sizing=False, **kwargs):
         self.fuel = fuel
         self.ox = ox
         self.OF = OF
         self.pc = pc
-        self.pamb = 1.01325
+        self.pamb = pamb
         self.cstar_eff = cstar_eff
-        if 'pamb' in kwargs:
-            self.pamb = kwargs['pamb']
 
         if sizing == True:
             self.thrust = kwargs['thrust']
@@ -235,22 +233,21 @@ class engine:
             self.eps = self.cea.get_eps_at_PcOvPe(Pc=self.pc, MR=self.OF, PcOvPe=(self.pc/self.pe))
 
         [self.ispvac, self.cstar, _] = self.cea.get_IvacCstrTc(Pc=self.pc, MR=self.OF, eps=self.eps)
-        [self.ispsea, self.exitcond] = self.cea.estimate_Ambient_Isp(Pc=self.pc, MR=self.OF, eps=self.eps, Pamb=self.pamb, frozen=0, frozenAtThroat=0)
+        [self.ispsea, _] = self.cea.estimate_Ambient_Isp(Pc=self.pc, MR=self.OF, eps=self.eps, Pamb=1.01325, frozen=0, frozenAtThroat=0)
         [self.Tg_c, self.Tg_t, self.Tg_e] = self.cea.get_Temperatures(Pc=self.pc, MR=self.OF, eps=self.eps, frozen=0, frozenAtThroat=0)
         self.ispsea = self.ispsea * self.cstar_eff
         self.ispvac = self.ispvac * self.cstar_eff
-        self.ispthroat = self.cea.get_Throat_Isp(Pc=self.pc, MR=self.OF, frozen=0) * self.cstar_eff
         self.cstar = self.cstar * self.cstar_eff
         self.pt = self.pc/self.cea.get_Throat_PcOvPe(Pc=self.pc, MR=self.OF)
-        self.cf = (self.cea.get_PambCf(Pamb=self.pamb, Pc=self.pc, MR=self.OF, eps=self.eps))[0]
+        [_, self.cf, self.exitcond] = self.cea.get_PambCf(Pamb=self.pamb, Pc=self.pc, MR=self.OF, eps=self.eps)
         if sizing == True:
             self.at = self.thrust / (self.pc * self.cf * 1e5)
         self.mdot = self.pc * 1e5 * self.at / self.cstar
         self.ox_mdot = self.mdot * self.OF / (1 + self.OF)
         self.fuel_mdot = self.mdot / (1 + self.OF)
         if sizing == False:
-            self.thrust = self.at * self.pc * self.cf * 1e5
-        self.thrust_thoat = self.mdot * self.ispthroat * g
+            self.thrust = self.cf * self.mdot * self.cstar
+        self.isp = self.thrust / (self.mdot * g)
         self.PinjPcomb = self.cea.get_Pinj_over_Pcomb(Pc=self.pc, MR=self.OF)
         self.Me = self.cea.get_MachNumber(Pc=self.pc, MR=self.OF, eps=self.eps, frozen=0, frozenAtThroat=0)
         [self.cp_c, self.mu_c, self.k_c, self.pr_c] = self.cea.get_Chamber_Transport(Pc=self.pc, MR=self.OF, eps=self.eps)
@@ -334,18 +331,14 @@ class engine:
         self.fuel_inj_p = self.pc + self.fuel_dp
         self.ox_inj_p = self.pc + self.ox_dp
 
-    def inj_p_combustion_sim(self, injector, fuel, ox, fuel_inj_p, ox_inj_p, fuel_rho=786, ox_rho=860, ox_gas_class=None, ox_temp=15, fuel_gas_class=None, fuel_temp=15, cstar_eff=1, n_max=100):
+    def system_combustion_sim(self, fuel, ox, fuel_core_CdA, ox_CdA, fuel_upstream_p, ox_upstream_p, pamb = 1.01325, film_frac = 0, fuel_rho=786, ox_rho=860, ox_gas_class=None, ox_temp=15, fuel_gas_class=None, fuel_temp=15, cstar_eff=1, n_max=100):
         """Combustion sim based on injector pressures.\n
-        Required Inputs: fuel, ox, fuel_inj_p, ox_inj_p, fuel_rho, ox_rho\n
+        Required Inputs: fuel, ox, fuel_upstream_p, ox_upstream_p, film_frac, fuel_rho, ox_rho\n
         Optional Inputs: oxclass, ox_gas, ox_temp, fuelclass, fuel_gas, fuel_temp"""
 
         self.fuel = fuel
         self.ox = ox
-        self.fuel_inj_p = fuel_inj_p
-        self.ox_inj_p = ox_inj_p
-        self.fuel_rho = fuel_rho
-        self.ox_rho = ox_rho
-        
+        fuel_total_CdA = fuel_core_CdA * (1 + film_frac)
         if ox_gas_class is None:
             ox_gas = False
         else:
@@ -357,7 +350,7 @@ class engine:
             fuel_gas = True
 
         if ox_gas:
-            ox_gas_class.update(Input.temperature(ox_temp), Input.pressure(ox_inj_p*1e5))
+            ox_gas_class.update(Input.temperature(ox_temp), Input.pressure(ox_upstream_p*1e5))
             ox_R = 8.31447/ox_gas_class.molar_mass
             ox_gamma = (ox_gas_class.specific_heat)/(ox_gas_class.specific_heat-ox_R)
             ox_rho = ox_gas_class.density
@@ -368,7 +361,7 @@ class engine:
             ox_k = 0
 
         if fuel_gas:
-            fuel_gas_class.update(Input.temperature(fuel_temp), Input.pressure(fuel_inj_p*1e5))
+            fuel_gas_class.update(Input.temperature(fuel_temp), Input.pressure(fuel_upstream_p*1e5))
             fuel_R = 8.31447/fuel_gas_class.molar_mass
             fuel_gamma = (fuel_gas_class.specific_heat)/(fuel_gas_class.specific_heat-fuel_R)
             fuel_rho = fuel_gas_class.density
@@ -376,56 +369,46 @@ class engine:
         else:
             fuel_gamma = 0
             fuel_k = 0
-
-        # def pcfunc(pc, cstar, fuel_CdA, fuel_inj_p, fuel_rho, ox_CdA, ox_inj_p, ox_rho, ox_gas, ox_gamma, ox_k, fuel_gas, fuel_gamma, fuel_k):
-        #     if ox_gas:
-        #         min_choked_p = 2 * pc / (2-ox_gamma*ox_k)
-        #         if (ox_inj_p >= min_choked_p): #((ox_inj_p/pc) >= choking_ratio)&(ox_can_choke == True):
-        #             return ((cstar / self.at) * ((fuel_CdA*np.sqrt(2*fuel_rho*(fuel_inj_p-pc)*1e5)) + (ox_CdA*np.sqrt(ox_gamma*ox_rho*ox_inj_p*1e5*ox_k))) * 1e-5) - pc
-        #         else:
-        #             return ((cstar / self.at) * ((fuel_CdA*np.sqrt(2*fuel_rho*(fuel_inj_p-pc)*1e5)) + (ox_CdA*np.sqrt(2*ox_rho*(ox_inj_p-pc)*1e5))) * 1e-5) - pc
-        #     else:
-        #         return ((cstar / self.at) * ((fuel_CdA*np.sqrt(2*fuel_rho*(fuel_inj_p-pc)*1e5)) + (ox_CdA*np.sqrt(2*ox_rho*(ox_inj_p-pc)*1e5))) * 1e-5) - pc
             
-        def pcfunc(pc, cstar, fuel_CdA, fuel_inj_p, fuel_rho, ox_CdA, ox_inj_p, ox_rho, ox_gas, ox_gamma, ox_k, fuel_gas, fuel_gamma, fuel_k):
+        def pcfunc(pc, cstar, fuel_total_CdA, film_frac, fuel_upstream_p, fuel_rho, ox_CdA, ox_upstream_p, ox_rho, ox_gas, ox_gamma, ox_k, fuel_gas, fuel_gamma, fuel_k):
             if ox_gas:
                 ox_min_choked_p = 2 * pc / (2-ox_gamma*ox_k)
-                if ox_inj_p >= ox_min_choked_p:
-                    mdot_o = ox_CdA * np.sqrt(ox_gamma * ox_rho * ox_inj_p * 1e5 * ox_k)
+                if ox_upstream_p >= ox_min_choked_p:
+                    mdot_o = ox_CdA * np.sqrt(ox_gamma * ox_rho * ox_upstream_p * 1e5 * ox_k)
                 else:
-                    mdot_o = ox_CdA * np.sqrt(2 * ox_rho * (ox_inj_p - pc) * 1e5)
+                    mdot_o = ox_CdA * np.sqrt(2 * ox_rho * (ox_upstream_p - pc) * 1e5)
             else:
-                mdot_o = ox_CdA*np.sqrt(2*ox_rho*(ox_inj_p-pc)*1e5)
+                mdot_o = ox_CdA*np.sqrt(2*ox_rho*(ox_upstream_p-pc)*1e5)
 
             if fuel_gas:
                 fuel_min_choked_p = 2 * pc / (2-fuel_gamma*fuel_k)
-                if fuel_inj_p >= fuel_min_choked_p:
-                    mdot_f = fuel_CdA * np.sqrt(fuel_gamma * fuel_rho * fuel_inj_p * 1e5 * fuel_k)
+                if fuel_upstream_p >= fuel_min_choked_p:
+                    mdot_f = fuel_total_CdA * np.sqrt(fuel_gamma * fuel_rho * fuel_upstream_p * 1e5 * fuel_k)
                 else:
-                    mdot_f = fuel_CdA * np.sqrt(2 * fuel_rho * (fuel_inj_p - pc) * 1e5)
+                    mdot_f = fuel_total_CdA * np.sqrt(2 * fuel_rho * (fuel_upstream_p - pc) * 1e5)
             else:
-                mdot_f = fuel_CdA*np.sqrt(2*fuel_rho*(fuel_inj_p-pc)*1e5)
+                mdot_f = fuel_total_CdA*np.sqrt(2*fuel_rho*(fuel_upstream_p-pc)*1e5)
 
             # return ((cstar / self.at) * (mdot_f + mdot_o) * 1e-5) - pc
-            return ((cstar / self.at) * (mdot_f + mdot_o) * 1e-5) - pc
+            return ((cstar / self.at) * ((mdot_f/(1+film_frac)) + mdot_o) * 1e-5) - pc
         
         self.gen_cea_obj()
 
-        min_inj_p = min(self.fuel_inj_p, self.ox_inj_p)
+        min_inj_p = min(fuel_upstream_p, ox_upstream_p)
 
-        cstar_init = 1500 * cstar_eff
+        cstar_init = 1500
         cstar = cstar_init
         rel_diff = 1
 
         n = 0
-        while rel_diff > 1e-4:
+        while rel_diff > 5e-4:
             n += 1
             converged = True
-            with warnings.catch_warnings(record=True) as w:
+            with warnings.catch_warnings(record=True):
                 warnings.simplefilter("always", category=RuntimeWarning)
                 try:
-                    # pc = sp.optimize.fsolve(pcfunc, x0=(1), args=(cstar*cstar_eff, injector.fuel_CdA, self.fuel_inj_p, fuel_rho, injector.ox_CdA, self.ox_inj_p, ox_rho, ox_gas, ox_gamma, ox_k, fuel_gas, fuel_gamma, fuel_k))[0]
-                    pc = sp.optimize.root_scalar(pcfunc, bracket=[1, min_inj_p], args=(cstar*cstar_eff, injector.fuel_CdA, self.fuel_inj_p, fuel_rho, injector.ox_CdA, self.ox_inj_p, ox_rho, ox_gas, ox_gamma, ox_k, fuel_gas, fuel_gamma, fuel_k), method='brentq').root
+                    # pc = sp.optimize.fsolve(pcfunc, x0=(1), args=(cstar*cstar_eff, fuel_CdA, film_frac, fuel_upstream_p, fuel_rho, injector.ox_CdA, ox_inj_p, ox_rho, ox_gas, ox_gamma, ox_k, fuel_gas, fuel_gamma, fuel_k))[0]
+                    pc = sp.optimize.root_scalar(pcfunc, bracket=[0, min_inj_p], args=(cstar, fuel_total_CdA, film_frac, fuel_upstream_p, fuel_rho, ox_CdA, ox_upstream_p, ox_rho, ox_gas, ox_gamma, ox_k, fuel_gas, fuel_gamma, fuel_k), method='brentq').root
                 except ValueError:
                     converged = False
                     pass
@@ -433,24 +416,25 @@ class engine:
                     converged = False
                     pass
                     
-            mdot_f = injector.fuel_CdA * np.sqrt(2 * fuel_rho * (self.fuel_inj_p - pc) * 1e5)
             if ox_gas:
                 min_choked_p = 2 * pc / (2-ox_gamma*ox_k)
-                if ox_inj_p >= min_choked_p:
-                    mdot_o = injector.ox_CdA * np.sqrt(ox_gamma * ox_rho * ox_inj_p * 1e5 * ox_k)
+                if ox_upstream_p >= min_choked_p:
+                    mdot_o = ox_CdA * np.sqrt(ox_gamma * ox_rho * ox_upstream_p * 1e5 * ox_k)
                 else:
-                    mdot_o = injector.ox_CdA * np.sqrt(2 * ox_rho * (self.ox_inj_p - pc) * 1e5)
+                    mdot_o = ox_CdA * np.sqrt(2 * ox_rho * (ox_upstream_p - pc) * 1e5)
             else:
-                mdot_o = injector.ox_CdA*np.sqrt(2*ox_rho*(self.ox_inj_p-pc)*1e5)
+                mdot_o = ox_CdA*np.sqrt(2*ox_rho*(ox_upstream_p-pc)*1e5)
 
             if fuel_gas:
                 min_choked_p = 2 * pc / (2-fuel_gamma*fuel_k)
-                if fuel_inj_p >= min_choked_p:
-                    mdot_f = injector.fuel_CdA * np.sqrt(fuel_gamma * fuel_rho * fuel_inj_p * 1e5 * fuel_k)
+                if fuel_upstream_p >= min_choked_p:
+                    mdot_f = fuel_total_CdA * np.sqrt(fuel_gamma * fuel_rho * fuel_upstream_p * 1e5 * fuel_k)
                 else:
-                    mdot_f = injector.fuel_CdA * np.sqrt(2 * fuel_rho * (fuel_inj_p - pc) * 1e5)
+                    mdot_f = fuel_total_CdA * np.sqrt(2 * fuel_rho * (fuel_upstream_p - pc) * 1e5)
             else:
-                mdot_f = injector.fuel_CdA*np.sqrt(2*fuel_rho*(fuel_inj_p-pc)*1e5)
+                mdot_f = fuel_total_CdA*np.sqrt(2*fuel_rho*(fuel_upstream_p-pc)*1e5)
+
+            mdot_f /= (1 + film_frac)
 
             OF = mdot_o / mdot_f
             cstar_old = cstar
@@ -467,7 +451,7 @@ class engine:
         # else:
         #     print(f"Converged: fuel inj p: {self.fuel_inj_p:.2f}, ox inj p: {self.ox_inj_p:.2f}, n: {n}")
 
-        self.combustion_sim(fuel, ox, OF, pc, cstar_eff)
+        self.combustion_sim(fuel, ox, OF, pc, pamb, cstar_eff)
 
         self.OF = OF
         self.pc = pc
@@ -548,13 +532,13 @@ class engine:
         print(f'{self.fuel} / {self.ox}\n')
         print(f'OF:                 {self.OF:.3f}')
         print(f'Chamber Pressure:   {self.pc:.2f} bar')
+        print(f'Ambient Pressure:   {self.pamb:.2f} bar')
         print(f'Thrust:             {self.thrust:.2f} N')
-        print(f'Throat Thrust:      {self.thrust_thoat:.2f} N\n')
-        print(f'Sea Level ISP:      {self.ispsea:.2f} s')
-        print(f'Throat ISP:         {self.ispthroat:.2f} s')
+        print(f'ISP:                {self.isp:.2f} s')
+        print(f'SL ISP:             {self.ispsea:.2f} s')
         print(f'Vac ISP:            {self.ispvac:.2f} s')
         print(f'C*:                 {self.cstar:.2f} m/s')
-        print(f'Ct:                 {self.cf:.4f}\n')
+        print(f'Cf:                 {self.cf:.4f}\n')
         print(f'Chamber Temp:       {self.Tg_c:.2f} K')
         print(f'Throat Temp:        {self.Tg_t:.2f} K')
         print(f'Exit Temp:          {self.Tg_e:.2f} K\n')
@@ -942,11 +926,11 @@ class engine:
             elif param == "C* Eff":
                 self.cstar_eff = val
             try:
-                self.inj_p_combustion_sim(
+                self.system_combustion_sim(
                     fuel = fuel,
                     ox = ox,
-                    fuel_inj_p = fuel_inj_p,
-                    ox_inj_p = ox_inj_p,
+                    fuel_upstream_p = fuel_inj_p,
+                    ox_upstream_p = ox_inj_p,
                     fuel_rho = fuel_rho,
                     ox_rho = ox_rho,
                     ox_gas_class = oxclass,
@@ -1057,10 +1041,8 @@ class injector():
     For gas propellants, the class can calculate choked flow conditions."""
 
     def __init__(self):
-        self.fuel_A = 0
-        self.fuel_Cd = 0.75
-        self.ox_A = 0
-        self.ox_Cd = 0.4
+        self.film_CdA = 0
+        self.film_frac = 0
 
     def set_fuel_CdA(self, CdA):
         """
@@ -1071,7 +1053,8 @@ class injector():
         CdA : float
             Product of fuel discharge coefficient and area.
         """
-        self.fuel_CdA = CdA
+        self.fuel_core_CdA = CdA
+        self.calc_film()
 
     def set_ox_CdA(self, CdA):
         """
@@ -1083,6 +1066,27 @@ class injector():
             Product of oxidizer discharge coefficient and area.
         """
         self.ox_CdA = CdA
+
+    def calc_film(self):
+        """
+        Calculates the film cooling fraction based on the fuel and oxidizer mass flow rates.
+        """
+        if self.fuel_core_CdA is None:
+            raise ValueError("Fuel and oxidizer CdA must be set before calculating film fraction.")
+        self.film_frac = self.film_CdA / self.fuel_core_CdA
+        self.fuel_total_CdA = self.fuel_core_CdA + self.film_CdA
+
+    def set_film_CdA(self, CdA):
+        """
+        Sets the film cooling injector CdA.
+
+        Parameters
+        ----------
+        CdA : float
+            Product of film cooling discharge coefficient and area.
+        """
+        self.film_CdA = CdA
+        self.calc_film()
 
     def size_fuel_anulus(self, Cd, ID, OD, n = 1):
         """
@@ -1101,7 +1105,8 @@ class injector():
         """
         self.fuel_Cd = Cd
         self.fuel_A = 0.25e-6 * np.pi * (OD**2 - ID**2) * n
-        self.fuel_CdA = self.fuel_A * Cd
+        self.fuel_core_CdA = self.fuel_A * Cd
+        self.calc_film()
     
     def size_ox_anulus(self, Cd, ID, OD, n = 1):
         """
@@ -1137,7 +1142,8 @@ class injector():
         """
         self.fuel_Cd = Cd
         self.fuel_A = 0.25e-6 * np.pi * (d**2) * n
-        self.fuel_CdA = self.fuel_A * Cd
+        self.fuel_core_CdA = self.fuel_A * Cd
+        self.calc_film()
     
     def size_ox_holes(self, Cd, d, n = 1):
         """
@@ -1156,9 +1162,27 @@ class injector():
         self.ox_A = 0.25e-6 * np.pi * (d**2) * n
         self.ox_CdA = self.ox_A * Cd
 
-    def spi_fuel_mdot(self, dp, fuel_rho):
+    def size_film_holes(self, Cd, d, n = 1):
         """
-        Calculates the fuel mass flow rate through the injector using the single phase incompressible model.
+        Sizes the film cooling injector for a number of identical holes.
+
+        Parameters
+        ----------
+        Cd : float
+            Discharge coefficient for the film cooling holes.
+        d : float
+            Hole diameter in millimeters.
+        n : int, optional
+            Number of film cooling holes (default 1).
+        """
+        self.film_Cd = Cd
+        self.film_A = 0.25e-6 * np.pi * (d**2) * n
+        self.film_CdA = self.film_A * Cd
+        self.calc_film()
+
+    def spi_fuel_core_mdot(self, dp, fuel_rho):
+        """
+        Calculates the core fuel mass flow rate through the injector using the single phase incompressible model.
 
         Parameters
         ----------
@@ -1172,9 +1196,27 @@ class injector():
         float
             Fuel mass flow rate (kg/s)
         """
-        return self.fuel_CdA * np.sqrt(2e5 * dp * fuel_rho)
+        return self.fuel_core_CdA * np.sqrt(2e5 * dp * fuel_rho)
     
-    def spi_fuel_dp(self, mdot, fuel_rho):
+    def spi_fuel_total_mdot(self, dp, fuel_rho):
+        """
+        Calculates the total fuel mass flow rate through the injector using the single phase incompressible model.
+
+        Parameters
+        ----------
+        dp : float
+            Pressure differential across the injector orifice (bar)
+        fuel_rho : float
+            Density of the fuel (kg/m^3)
+
+        Returns
+        -------
+        float
+            Total fuel mass flow rate (kg/s)
+        """
+        return self.fuel_total_CdA * np.sqrt(2e5 * dp * fuel_rho)
+
+    def spi_fuel_core_dp(self, mdot, fuel_rho):
         """
         Calculates the pressure differential across the fuel injector orifice using the single phase incompressible model.
 
@@ -1190,7 +1232,25 @@ class injector():
         float
             Pressure differential across the injector orifice (bar)
         """
-        return ((mdot / self.fuel_CdA)**2) / (2e5 * fuel_rho)
+        return ((mdot / self.fuel_core_CdA)**2) / (2e5 * fuel_rho)
+
+    def spi_fuel_total_dp(self, mdot, fuel_rho):
+        """
+        Calculates the pressure differential across the total fuel injector orifice using the single phase incompressible model.
+
+        Parameters
+        ----------
+        mdot : float
+            Total fuel mass flow rate (kg/s)
+        fuel_rho : float
+            Density of the fuel (kg/m^3)
+
+        Returns
+        -------
+        float
+            Pressure differential across the injector orifice (bar)
+        """
+        return ((mdot / self.fuel_total_CdA)**2) / (2e5 * fuel_rho)
 
     def spi_ox_mdot(self, dp, ox_rho):
         """
@@ -1209,6 +1269,28 @@ class injector():
             Oxidiser mass flow rate (kg/s)
         """
         return self.ox_CdA * np.sqrt(2e5 * dp * ox_rho)
+    
+    def hem_ox_mdot(self, dp, ox_rho, h1, h2):
+        """
+        Calculates the oxidiser mass flow rate through the injector using the homogenous equlibrium model (HEM).
+
+        Parameters
+        ----------
+        dp : float
+            Pressure differential across the injector orifice (bar)
+        ox_rho : float
+            Density of the oxidiser (kg/m^3)
+        h1 : float
+            Upstream enthalpy (J/kg)
+        h2 : float
+            Downstream enthalpy (J/kg)
+
+        Returns
+        -------
+        float
+            Oxidiser mass flow rate (kg/s)
+        """
+        return self.ox_CdA * np.sqrt(2e5 * dp * ox_rho) - h1 - h2
 
     def spi_ox_dp(self, mdot, ox_rho):
         """
@@ -1227,10 +1309,47 @@ class injector():
             Pressure differential across the injector orifice (bar)
         """
         return ((mdot / self.ox_CdA)**2) / (2e5 * ox_rho)
+    
+    def spi_film_mdot(self, dp, film_rho):
+        """
+        Calculates the film cooling mass flow rate through the injector using the single phase incompressible model.
+
+        Parameters
+        ----------
+        dp : float
+            Pressure differential across the injector orifice (bar)
+        film_rho : float
+            Density of the film coolant (kg/m^3)
+
+        Returns
+        -------
+        float
+            Film cooling mass flow rate (kg/s)
+        """
+        return self.film_CdA * np.sqrt(2e5 * dp * film_rho)
+    
+    def spi_film_dp(self, mdot, film_rho):
+        """
+        Calculates the pressure differential across the film cooling injector orifice using the single phase incompressible model.
+
+        Parameters
+        ----------
+        mdot : float
+            Film cooling mass flow rate (kg/s)
+        film_rho : float
+            Density of the film coolant (kg/m^3)
+
+        Returns
+        -------
+        float
+            Pressure differential across the injector orifice (bar)
+        """
+        return ((mdot / self.film_CdA)**2) / (2e5 * film_rho)
 
     def calc_start_mdot(self, fuel_inj_p, ox_inj_p, fuel_rho=786, ox_rho=860, ox_gas_class=None, ox_temp=15, fuel_gas_class=None, fuel_temp=15):
         """
         Calculates the starting mdots for the injector (venting to atm).
+        Disregards film cooling.
         ----------
         fuel_inj_p : float
             Fuel injector pressure (bar)
@@ -1280,12 +1399,12 @@ class injector():
             fuel_k = (2/(fuel_gamma+1))**((fuel_gamma+1)/(fuel_gamma-1))
             min_choked_p = 2 * 1.01325 / (2-fuel_gamma*fuel_k)
             if fuel_inj_p >= min_choked_p:
-                fuel_mdot_start = self.fuel_CdA * np.sqrt(fuel_gamma*fuel_rho*fuel_inj_p*1e5*fuel_k)
+                fuel_mdot_start = self.fuel_core_CdA * np.sqrt(fuel_gamma*fuel_rho*fuel_inj_p*1e5*fuel_k)
                 fuel_chokedstate = 'Choked'
             else:
-                fuel_mdot_start = self.fuel_CdA * np.sqrt(2*(fuel_inj_p-1.01325) * 1e5 * fuel_rho)
+                fuel_mdot_start = self.fuel_core_CdA * np.sqrt(2*(fuel_inj_p-1.01325) * 1e5 * fuel_rho)
         else:
-            fuel_mdot_start = self.fuel_CdA * np.sqrt(2*(fuel_inj_p-1.01325) * 1e5 * fuel_rho)
+            fuel_mdot_start = self.fuel_core_CdA * np.sqrt(2*(fuel_inj_p-1.01325) * 1e5 * fuel_rho)
 
         print(f'Total Start mdot: {(ox_mdot_start+fuel_mdot_start)*1e3:.3f} g/s')
         if ox_gas_class != None:
@@ -1356,10 +1475,6 @@ if __name__ == '__main__':
 
     plt.ion()
 
-    # water_perc = 15
-    # alcohol = 'Isopropanol'
-    # watermix = cea_fuel_water_mix(alcohol, water_perc)
-
     hopper = engine('configs/hopperengine.cfg')
     coax_igniter = engine('configs/coax_igniter1.cfg')
 
@@ -1427,26 +1542,60 @@ if __name__ == '__main__':
 
     nitrous_reg_p = 9
 
-    coax_igniter.inj_p_combustion_sim(
-        injector = propane_inj,
-        fuel = 'Propane',
-        ox = 'N2O',
-        fuel_inj_p = propane_sat_p,
-        ox_inj_p = nitrous_reg_p,
-        ox_gas_class = Fluid(FluidsList.NitrousOxide),
-        ox_temp = ambient_T,
-        fuel_gas_class = Fluid(FluidsList.nPropane),
-        fuel_temp = ambient_T,
-    )
-    coax_igniter.print_data()
-    propane_inj.calc_start_mdot(
-        fuel_inj_p = propane_sat_p,
-        ox_inj_p = nitrous_reg_p,
-        ox_gas_class = Fluid(FluidsList.NitrousOxide),
-        ox_temp = ambient_T,
-        fuel_gas_class=Fluid(FluidsList.nPropane),
-        fuel_temp=ambient_T,
-    )
+    # coax_igniter.system_combustion_sim(
+    #     fuel_CdA = propane_inj.fuel_CdA,
+    #     ox_CdA = propane_inj.ox_CdA,
+    #     fuel = 'Propane',
+    #     ox = 'N2O',
+    #     fuel_upstream_p = propane_sat_p,
+    #     ox_upstream_p = nitrous_reg_p,
+    #     ox_gas_class = Fluid(FluidsList.NitrousOxide),
+    #     ox_temp = ambient_T,
+    #     fuel_gas_class = Fluid(FluidsList.nPropane),
+    #     fuel_temp = ambient_T,
+    #     cstar_eff = 1,
+    # )
+    # coax_igniter.print_data()
+    # coax_igniter.system_combustion_sim(
+    #     fuel_CdA = propane_inj.fuel_CdA,
+    #     ox_CdA = propane_inj.ox_CdA,
+    #     fuel = 'Propane',
+    #     ox = 'N2O',
+    #     fuel_upstream_p = propane_sat_p,
+    #     ox_upstream_p = nitrous_reg_p,
+    #     ox_gas_class = Fluid(FluidsList.NitrousOxide),
+    #     ox_temp = ambient_T,
+    #     fuel_gas_class = Fluid(FluidsList.nPropane),
+    #     fuel_temp = ambient_T,
+    #     cstar_eff = 0.95,
+    # )
+    # coax_igniter.print_data()
+    # propane_inj.calc_start_mdot(
+    #     fuel_inj_p = propane_sat_p,
+    #     ox_inj_p = nitrous_reg_p,
+    #     ox_gas_class = Fluid(FluidsList.NitrousOxide),
+    #     ox_temp = ambient_T,
+    #     fuel_gas_class=Fluid(FluidsList.nPropane),
+    #     fuel_temp=ambient_T,
+    # )
+
+    # coax_igniter.combustion_sim(
+    #     fuel = 'Isopropanol',
+    #     ox = 'N2O',
+    #     OF = 5,
+    #     pc = 5,
+    #     cstar_eff = 1,
+    # )
+    # coax_igniter.print_data()
+
+    # coax_igniter.combustion_sim(
+    #     fuel = 'Isopropanol',
+    #     ox = 'N2O',
+    #     OF = 5,
+    #     pc = 5,
+    #     cstar_eff = 0.8,
+    # )
+    # coax_igniter.print_data()
 
     coax_inj_ox_reg = injector()
     coax_inj_ox_reg.size_fuel_holes(Cd = fuelCd, d = 0.2)
@@ -1454,6 +1603,40 @@ if __name__ == '__main__':
 
     fuel_reg_p = 8
     ox_reg_p = 8
+
+    hopper_inj = injector()
+    hopper_inj.size_fuel_anulus(Cd = 0.75, ID = 5.565, OD = 6)
+    # hopper_inj.size_ox_holes(Cd = 0.2, d = 0.7, n = 24)
+    hopper_inj.set_ox_CdA(0.17e-5)
+    # hopper_inj.size_film_holes(Cd = 0.75, d = 0.2, n = 42)
+
+    hopper.system_combustion_sim(
+        fuel_core_CdA = hopper_inj.fuel_core_CdA,
+        ox_CdA = hopper_inj.ox_CdA,
+        film_frac = hopper_inj.film_frac,
+        fuel = 'Isopropanol',
+        ox = 'N2O',
+        fuel_upstream_p = 22,
+        ox_upstream_p = 30,
+        fuel_rho = 790,
+        ox_rho = 860,
+        cstar_eff = 1,
+        )
+    hopper.print_data()
+
+    hopper.system_combustion_sim(
+        fuel_core_CdA = hopper_inj.fuel_core_CdA,
+        ox_CdA = hopper_inj.ox_CdA,
+        film_frac = hopper_inj.film_frac,
+        fuel = 'Isopropanol',
+        ox = 'N2O',
+        fuel_upstream_p = 22,
+        ox_upstream_p = 30,
+        fuel_rho = 790,
+        ox_rho = 860,
+        cstar_eff = 0.9,
+        )
+    hopper.print_data()
 
     # coax_igniter.inj_p_combustion_sim(
     #     injector = coax_inj_ox_reg,
