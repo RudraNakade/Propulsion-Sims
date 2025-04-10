@@ -24,9 +24,9 @@ def total_CdA(*vals):
 
 class ox_system:
     def __init__(self, fluid_class, fluid_name, tank_volume, system_CdA, p_supercharge=None, vp=None, T=None, ullage = 0):
-        initial_V_l = tank_volume * (1 - ullage)
-        initial_V_g = tank_volume * ullage
         self.V = tank_volume
+        self.V_l = tank_volume * (1 - ullage)
+        self.V_g = tank_volume * ullage
         self.pf = Fluid(fluid_class)
         self.CdA = system_CdA
         self.name = fluid_name
@@ -35,39 +35,80 @@ class ox_system:
             self.set_saturated_state(vp=vp, T=T)
             self.tank_p = vp
             self.saturated = True
+            self.m_total = self.V_l * self.rho_l + self.V_g * self.rho_g
+            self.m_l = self.V_l * self.rho_l
+            self.m_g = self.m_total - self.m_l
+            self.m_vap = 0
         else:
             self.set_supercharge_state(p_supercharge, vp, T)
             self.tank_p = p_supercharge
             self.saturated = False
-
-        self.m = self.rho * initial_V_l
+            self.m_total = self.V_l * self.rho_l
+            self.m_l = self.m_total
 
     def update(self, dm):
-        if dm > 0:
-            self.m -= dm
-        if self.m < 0:
-            self.m = 0
+        if self.saturated:
+            self.m_total -= dm
+            self.T -= self.m_vap * self.Hv / (self.m_l * self.C_l)
+            self.m_l_unphased = self.m_total - dm
+            self.pf.update(Input.temperature(self.T), Input.quality(0))
+            self.tank_p = self.pf.pressure
+            self.rho_l = self.pf.density
+            self.C_l = self.pf.specific_heat
+            H_l = self.pf.enthalpy
+            self.pf.update(Input.temperature(self.T), Input.quality(100))
+            self.rho_g = self.pf.density
+            self.m_l_unphased = self.m_l - dm
+            self.m_l = (self.V - (self.m_total/self.rho_g)) / ((1/self.rho_l) - (1/self.rho_g))
+            self.m_g = self.m_total - self.m_l
+            self.V_l = self.m_l / self.rho_l
+            self.V_g = self.m_g / self.rho_g
+
+            self.Hv = self.pf.enthalpy - H_l
+            self.m_vap = self.m_l_unphased - self.m_l
+
+            if self.m_l > self.m_l_unphased:
+                self.m_l = 0
+            # print(f'Mass: {self.m_total:.3f} kg, Liquid Mass: {self.m_l:.3f} kg, Gas Mass: {self.m_g:.3f} kg')
+            # print(f'Rhol: {self.rho_l:.3f} kg/m^3, Rho_g: {self.rho_g:.3f} kg/m^3')
+        else:
+            if dm > 0:
+                self.m_l -= dm
+            if self.m_l < 0:
+                self.m_l = 0
     
     def set_supercharge_state(self, p_supercharge, vp=None, T=None):
-        if vp is None and T is None:
+        self.T = T
+        if vp is None and self.T is None:
             raise ValueError("Exactly one of vapour pressure or temperature must be specified")
         else: 
             if vp is not None:
                 self.pf.update(Input.pressure(vp), Input.quality(0))
-                T = self.pf.temperature
-            self.pf.update(Input.pressure(p_supercharge), Input.temperature(T))
-        self.rho = self.pf.density
+                self.T = self.pf.temperature
+            self.pf.update(Input.pressure(p_supercharge), Input.temperature(self.T))
+            self.rho_l = self.pf.density
+            # print(f'Rhol: {self.rho_l:.3f} kg/m^3')
 
     def set_saturated_state(self, vp=None, T=None):
-        if vp is None and T is None:
+        self.T = T
+        if vp is None and self.T is None:
             raise ValueError("Either one of vapour pressure or temperature must be specified")
         else:
             if vp is not None:
                 self.pf.update(Input.pressure(vp), Input.quality(0))
+                self.T = self.pf.temperature
+                self.rho_l = self.pf.density
+                H_l = self.pf.enthalpy
+                self.C_l = self.pf.specific_heat
+                self.pf.update(Input.pressure(vp), Input.quality(100))
+                self.rho_g = self.pf.density
+                self.Hv = self.pf.enthalpy - H_l
             else:
-                self.pf.update(Input.temperature(T), Input.quality(0))
-        self.rho = self.pf.density
-
+                self.pf.update(Input.temperature(self.T), Input.quality(0))
+                self.rho_l = self.pf.density
+                self.pf.update(Input.temperature(self.T), Input.quality(100))
+                self.rho_g = self.pf.density
+        
 class fuel_system:
     def __init__(self, fluid_name, density, tank_volume, system_CdA, tank_p, ullage = 0):
         initial_V_l = tank_volume * (1 - ullage)
@@ -102,10 +143,6 @@ class prop_system:
         self.total_ox_CdA = total_CdA(injector.ox_CdA, ox_system.CdA)
         self.film_frac = injector.film_frac
 
-        # Pre-allocate arrays with estimated size to avoid frequent resizing
-        # Estimate max iterations based on propellant mass and average flow rate
-        fuel_mass = fuel_system.m
-        ox_mass = ox_system.m
         est_max_iterations = 1000  # Default estimate
         
         # Initialize arrays with estimated size
@@ -137,13 +174,13 @@ class prop_system:
         self.engine.system_combustion_sim(
             fuel = self.fuel.name,
             ox = self.ox.name,
-            fuel_CdA = self.total_fuel_CdA,
+            fuel_total_CdA = self.total_fuel_CdA,
             ox_CdA = self.total_ox_CdA,
             film_frac = self.film_frac,
             fuel_upstream_p = pa2bar(self.fuel.tank_p),
             ox_upstream_p = pa2bar(self.ox.tank_p),
             fuel_rho = self.fuel.rho,
-            ox_rho = self.ox.rho,
+            ox_rho = self.ox.rho_l,
             cstar_eff = self.cstar_eff,)
 
     def run_sim(self, dt, sim_time = None, verbose = False):
@@ -154,7 +191,7 @@ class prop_system:
         print_interval = max(1, int(1.0 / dt))  # Print approximately once per second
         print_counter = 0
         
-        while (self.fuel.m > 0 and self.ox.m > 0 and time_flag):
+        while (self.fuel.m > 0 and self.ox.m_l > 0 and time_flag):
             self.engine_sim()
 
             if not first_loop:
@@ -173,16 +210,16 @@ class prop_system:
             self.fuel_rho[self.idx] = self.fuel.rho
             self.fuel_tank_p[self.idx] = pa2bar(self.fuel.tank_p)
             
-            fuel_inj_dp_val = self.injector.spi_fuel_dp(self.fuel_core_mdot[self.idx], self.fuel.rho)
+            fuel_inj_dp_val = self.injector.spi_fuel_core_dp(self.fuel_core_mdot[self.idx], self.fuel.rho)
             self.fuel_inj_dp[self.idx] = fuel_inj_dp_val
             self.fuel_inj_p[self.idx] = self.engine.pc + fuel_inj_dp_val
 
-            self.ox_mass[self.idx] = self.ox.m
+            self.ox_mass[self.idx] = self.ox.m_l
             self.ox_mdot[self.idx] = self.engine.ox_mdot
-            self.ox_rho[self.idx] = self.ox.rho
+            self.ox_rho[self.idx] = self.ox.rho_l
             self.ox_tank_p[self.idx] = pa2bar(self.ox.tank_p)
             
-            ox_inj_dp_val = self.injector.spi_ox_dp(self.engine.ox_mdot, self.ox.rho)
+            ox_inj_dp_val = self.injector.spi_ox_dp(self.engine.ox_mdot, self.ox.rho_l)
             self.ox_inj_dp[self.idx] = ox_inj_dp_val
             self.ox_inj_p[self.idx] = self.engine.pc + ox_inj_dp_val
 
@@ -273,7 +310,7 @@ class prop_system:
         self.cstar_eff = cstar_eff
 
     def plot_sim(self):
-        fig, axs = plt.subplots(2, 3, figsize=(14, 15))
+        fig, axs = plt.subplots(2, 3, figsize=(16, 9))
 
         # Mass Flow Rates
         ax_mdot = axs[0, 0]
@@ -373,8 +410,9 @@ class prop_system:
 ox = ox_system(fluid_class = FluidsList.NitrousOxide,
                fluid_name = 'N2O',
                tank_volume = l2m3(5.5),
+                # tank_volume = l2m3(2.5),
                system_CdA = 4.8e-6,
-               p_supercharge = bar2pa(31.5),
+               p_supercharge = bar2pa(35),
                vp = bar2pa(30),
                ullage = 0.2)
 
@@ -382,22 +420,22 @@ fuel = fuel_system(fluid_name = 'Isopropanol',
                    density = 790,
                    tank_volume = l2m3(9),
                    system_CdA = 3.75e-6, # 150 deg fuel main valve angle
-                   tank_p = bar2pa(30.3),
+                   tank_p = bar2pa(35),
                    ullage = 0.2)
 
 hopper_inj = es.injector()
 hopper_inj.size_fuel_anulus(Cd = 0.75, ID = 5.569, OD = 6)
 hopper_inj.size_film_holes(Cd = 0.75, d = 0.2, n = 42)
-# hopper_inj.size_ox_holes(Cd = 0.4, d = 0.8, n = 24)
+hopper_inj.size_ox_holes(Cd = 0.4, d = 0.8, n = 24)
 # hopper_inj.set_fuel_CdA(3e-6)
-hopper_inj.set_ox_CdA(1.8e-6)
+# hopper_inj.set_ox_CdA(4e-6)
 
 hopper_engine = es.engine('configs/hopperengine.cfg')
 
 system = prop_system(fuel, ox, hopper_inj, hopper_engine)
 # system.set_cstar_eff(0.85)
 
-system.run_sim(0.5)
+system.run_sim(1)
 system.plot_sim()
 
 plt.show()

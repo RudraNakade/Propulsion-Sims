@@ -36,7 +36,6 @@ thrust = np.array([])
 fuel_times = np.array([])
 ox_times = np.array([])
 
-
 # Nitrous
 ox_tank_d = 95 # mm
 ox_tank_h = 700 # mm

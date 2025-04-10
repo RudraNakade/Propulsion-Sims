@@ -1,3 +1,4 @@
+from matplotlib.pylab import f
 from rocketcea.cea_obj_w_units import CEA_Obj
 from rocketcea.cea_obj import add_new_fuel
 from pyfluids import Fluid, FluidsList, Mixture, Input
@@ -379,14 +380,14 @@ class engine:
         self.fuel_inj_p = self.pc + self.fuel_dp
         self.ox_inj_p = self.pc + self.ox_dp
 
-    def system_combustion_sim(self, fuel, ox, fuel_core_CdA, ox_CdA, fuel_upstream_p, ox_upstream_p, pamb = 1.01325, film_frac = 0, fuel_rho=786, ox_rho=860, ox_gas_class=None, ox_temp=15, fuel_gas_class=None, fuel_temp=15, cstar_eff=1, n_max=100):
+    def system_combustion_sim(self, fuel, ox, fuel_total_CdA, ox_CdA, fuel_upstream_p, ox_upstream_p, pamb = 1.01325, film_frac = 0, fuel_rho=786, ox_rho=860, ox_gas_class=None, ox_temp=15, fuel_gas_class=None, fuel_temp=15, cstar_eff=1, n_max=100):
         __doc__ = """Combustion sim based on injector pressures.\n
             Required Inputs: fuel, ox, fuel_upstream_p, ox_upstream_p, film_frac, fuel_rho, ox_rho\n
             Optional Inputs: oxclass, ox_gas, ox_temp, fuelclass, fuel_gas, fuel_temp"""
 
         self.fuel = fuel
         self.ox = ox
-        fuel_total_CdA = fuel_core_CdA * (1 + film_frac)
+
         if ox_gas_class is None:
             ox_gas = False
         else:
@@ -1618,205 +1619,86 @@ if __name__ == '__main__':
     plt.ion()
 
     hopper = engine('configs/hopperengine.cfg')
-    coax_igniter = engine('configs/coax_igniter1.cfg')
+    igniter = engine('configs/igniter.cfg')
 
-    ambient_T = 15
-
-    fuelCd = 0.4
-    oxCd = 0.65
-
-    coax_inj_tank_p = injector()
-    coax_inj_tank_p.size_fuel_holes(Cd = fuelCd, d = 0.2)
-    coax_inj_tank_p.size_ox_anulus(Cd = oxCd, ID = 0.5, OD = 0.9)
-    
-    evan_daniel_inj = injector()
-    evan_daniel_inj.size_fuel_holes(Cd = fuelCd, d = in2mm(0.006))
-    evan_daniel_inj.size_ox_holes(Cd = oxCd, d = in2mm(1/32))
+    # evan_daniel_inj = injector()
+    # evan_daniel_inj.size_fuel_holes(Cd = fuelCd, d = in2mm(0.006))
+    # evan_daniel_inj.size_ox_holes(Cd = oxCd, d = in2mm(1/32))
     # evan_daniel_inj.size_ox_anulus(Cd = oxCd, ID = in2mm(1/16), OD = in2mm(0.08))
 
-    coax_igniter.dt = 2.5e-3
-    coax_igniter.update()
+    ambient_T = 18
 
-###############################################################
+    coax_inj_propane = injector()
+    coax_inj_propane.size_fuel_holes(Cd = 0.5, d = 0.7)
+    coax_inj_propane.size_ox_anulus(Cd = 0.65, ID = 1, OD = 1.5)
 
-    fuel_reg_p = 27
-    # ox_reg_p = psi2bar(330)
+    coax_inj_ipa = injector()
+    coax_inj_ipa.size_fuel_holes(Cd = 0.5, d = 0.2)
+    coax_inj_ipa.size_ox_anulus(Cd = 0.65, ID = 0.5, OD = 1.2)
 
-    nitrous = Fluid(FluidsList.NitrousOxide)
+    igniter.dt = 2.5e-3
+    igniter.update()
 
-    n2o_vent_p = 30
-    nitrous.update(Input.pressure(n2o_vent_p*1e5), Input.quality(0))
-    n2o_sat_p = (nitrous.pressure-100)/1e5
-    n2o_temp = nitrous.temperature
+    igniter.system_combustion_sim(
+        fuel = 'Isopropanol',
+        ox = 'N2O',
+        fuel_total_CdA= coax_inj_ipa.fuel_core_CdA,
+        ox_CdA = coax_inj_ipa.ox_CdA,
+        fuel_upstream_p = 7,
+        ox_upstream_p = 7,
+        fuel_rho = 786,
+        ox_gas_class = Fluid(FluidsList.NitrousOxide),
+        ox_temp = ambient_T,
+    )
+    igniter.print_data()
 
-    ambient_T = n2o_temp
-    # coax_igniter.dt = 2e-3
-    # coax_igniter.update()
+    inj1 = injector()
+    inj1.size_fuel_holes(Cd = 0.5, d = 0.2)
+    inj1.size_ox_holes(Cd = 0.65, d = 1)
 
-    # coax_igniter.inj_p_combustion_sim(
-    #     injector = coax_inj_tank_p,
-    #     fuel = 'Isopropanol',
-    #     ox = 'N2O',
-    #     fuel_inj_p = fuel_reg_p,
-    #     ox_inj_p = n2o_sat_p,
-    #     fuel_rho = 786,
-    #     ox_gas_class = Fluid(FluidsList.NitrousOxide),
-    #     ox_temp = ambient_T,
-    # )
-    # coax_igniter.print_data()
-    # coax_inj_tank_p.calc_start_mdot(
-    #     fuel_inj_p = fuel_reg_p,
-    #     ox_inj_p = n2o_sat_p,
-    #     fuel_rho = 786,
-    #     ox_gas_class = Fluid(FluidsList.NitrousOxide),
-    #     ox_temp = ambient_T,
-    # )
+    igniter.dt = 2.5e-3
+    igniter.update()
 
-    ambient_T = 15
+    igniter.system_combustion_sim(
+        fuel = 'Isopropanol',
+        ox = 'N2O',
+        fuel_total_CdA= inj1.fuel_core_CdA,
+        ox_CdA = inj1.ox_CdA,
+        fuel_upstream_p = 6,
+        ox_upstream_p = 7,
+        fuel_rho = 786,
+        ox_gas_class = Fluid(FluidsList.NitrousOxide),
+        ox_temp = ambient_T,
+    )
+    igniter.print_data()
 
-    propane_inj = injector()
-    propane_inj.size_fuel_holes(Cd = 0.5, d = 0.7)
-    propane_inj.size_ox_anulus(Cd = 0.65, ID = 1, OD = 1.5)
+    igniter.dt = 2e-3
+    igniter.update()
+
+    inj2 = injector()
+    inj2.size_fuel_holes(Cd = 0.65, d = 0.5)
+    inj2.size_ox_holes(Cd = 0.65, d = 0.9)
 
     propane = Fluid(FluidsList.nPropane)
     propane.update(Input.temperature(ambient_T), Input.quality(0))
-    propane_sat_p = (propane.pressure-100)/1e5
+    propane_vp = (propane.pressure-100)/1e5
+    print(f'Propane Saturation Pressure: {propane_vp:.3f} bar')
 
-    nitrous_reg_p = 9
-
-    # coax_igniter.system_combustion_sim(
-    #     fuel_CdA = propane_inj.fuel_CdA,
-    #     ox_CdA = propane_inj.ox_CdA,
-    #     fuel = 'Propane',
-    #     ox = 'N2O',
-    #     fuel_upstream_p = propane_sat_p,
-    #     ox_upstream_p = nitrous_reg_p,
-    #     ox_gas_class = Fluid(FluidsList.NitrousOxide),
-    #     ox_temp = ambient_T,
-    #     fuel_gas_class = Fluid(FluidsList.nPropane),
-    #     fuel_temp = ambient_T,
-    #     cstar_eff = 1,
-    # )
-    # coax_igniter.print_data()
-    # coax_igniter.system_combustion_sim(
-    #     fuel_CdA = propane_inj.fuel_CdA,
-    #     ox_CdA = propane_inj.ox_CdA,
-    #     fuel = 'Propane',
-    #     ox = 'N2O',
-    #     fuel_upstream_p = propane_sat_p,
-    #     ox_upstream_p = nitrous_reg_p,
-    #     ox_gas_class = Fluid(FluidsList.NitrousOxide),
-    #     ox_temp = ambient_T,
-    #     fuel_gas_class = Fluid(FluidsList.nPropane),
-    #     fuel_temp = ambient_T,
-    #     cstar_eff = 0.95,
-    # )
-    # coax_igniter.print_data()
-    # propane_inj.calc_start_mdot(
-    #     fuel_inj_p = propane_sat_p,
-    #     ox_inj_p = nitrous_reg_p,
-    #     ox_gas_class = Fluid(FluidsList.NitrousOxide),
-    #     ox_temp = ambient_T,
-    #     fuel_gas_class=Fluid(FluidsList.nPropane),
-    #     fuel_temp=ambient_T,
-    # )
-
-    # coax_igniter.combustion_sim(
-    #     fuel = 'Isopropanol',
-    #     ox = 'N2O',
-    #     OF = 5,
-    #     pc = 5,
-    #     cstar_eff = 1,
-    # )
-    # coax_igniter.print_data()
-
-    # coax_igniter.combustion_sim(
-    #     fuel = 'Isopropanol',
-    #     ox = 'N2O',
-    #     OF = 5,
-    #     pc = 5,
-    #     cstar_eff = 0.8,
-    # )
-    # coax_igniter.print_data()
-
-    coax_inj_ox_reg = injector()
-    coax_inj_ox_reg.size_fuel_holes(Cd = fuelCd, d = 0.2)
-    coax_inj_ox_reg.size_ox_anulus(Cd = oxCd, ID = 0.5, OD = 1.2)
-
-    fuel_reg_p = 8
-    ox_reg_p = 8
-
-    hopper_inj = injector()
-    hopper_inj.size_fuel_anulus(Cd = 0.75, ID = 5.565, OD = 6)
-    # hopper_inj.size_ox_holes(Cd = 0.2, d = 0.7, n = 24)
-    hopper_inj.set_ox_CdA(0.17e-5)
-    # hopper_inj.size_film_holes(Cd = 0.75, d = 0.2, n = 42)
-
-    hopper.system_combustion_sim(
-        fuel_core_CdA = hopper_inj.fuel_core_CdA,
-        ox_CdA = hopper_inj.ox_CdA,
-        film_frac = hopper_inj.film_frac,
-        fuel = 'Isopropanol',
+    igniter.system_combustion_sim(
+        fuel = 'Propane',
         ox = 'N2O',
-        fuel_upstream_p = 22,
-        ox_upstream_p = 30,
-        fuel_rho = 790,
-        ox_rho = 860,
-        cstar_eff = 1,
-        )
-    hopper.print_data()
+        fuel_total_CdA= inj2.fuel_core_CdA,
+        ox_CdA = inj2.ox_CdA,
+        fuel_upstream_p = propane_vp,
+        ox_upstream_p = 8,
+        fuel_gas_class = propane,
+        ox_gas_class = Fluid(FluidsList.NitrousOxide),
+        fuel_temp = ambient_T,
+        ox_temp = ambient_T,
+    )
+    igniter.print_data()
 
-    hopper.system_combustion_sim(
-        fuel_core_CdA = hopper_inj.fuel_core_CdA,
-        ox_CdA = hopper_inj.ox_CdA,
-        film_frac = hopper_inj.film_frac,
-        fuel = 'Isopropanol',
-        ox = 'N2O',
-        fuel_upstream_p = 22,
-        ox_upstream_p = 30,
-        fuel_rho = 790,
-        ox_rho = 860,
-        cstar_eff = 0.9,
-        )
-    hopper.print_data()
-
-    # coax_igniter.inj_p_combustion_sim(
-    #     injector = coax_inj_ox_reg,
-    #     fuel = 'Isopropanol',
-    #     ox = 'N2O',
-    #     fuel_inj_p = fuel_reg_p,
-    #     ox_inj_p = ox_reg_p,
-    #     fuel_rho = 786,
-    #     ox_gas_class = Fluid(FluidsList.NitrousOxide),
-    #     ox_temp = ambient_T,
-    # )
-    # coax_igniter.print_data()
-    # coax_inj_ox_reg.calc_start_mdot(
-    #     fuel_inj_p = fuel_reg_p,
-    #     ox_inj_p = ox_reg_p,
-    #     fuel_rho = 786,
-    #     ox_gas_class = Fluid(FluidsList.NitrousOxide),
-    #     ox_temp = ambient_T,
-    # )
-
-    # OFsweep(
-    #     fuel = 'Propane',
-    #     ox = 'N2O',
-    #     OFstart = 0.5,
-    #     OFend = 12,
-    #     pc = 25,
-    #     pe = 1,
-    #     cr = 16,
-    # )
-
-    # OFsweep(
-    #     fuel = 'Isopropanol',
-    #     ox = 'N2O',
-    #     OFstart = 0.5,
-    #     OFend = 10,
-    #     pc = 25,
-    #     pe = 1,
-    #     cr = 16,
-    # )
+    igniter.dt = 3e-3
+    igniter.update()
 
     plt.show(block=True)

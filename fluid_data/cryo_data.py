@@ -11,14 +11,14 @@ propane = Fluid(FluidsList.nPropane)
 methane = Fluid(FluidsList.Methane)
 
 T = np.linspace(64, 273, 500) - 273.15
-# Create propane-specific temperature array with valid range (T > 85.54)
-T_propane = T[T > -187]  # 85.54 K = -187.61°C
-# Create methane-specific temperature array with valid range (T > 91K)
-T_methane = T[T > -181]  # 91 K = -182.15°C
+
+T_propane = T[T > -187]
+
+T_methane = T[T > -181]
 P = np.concatenate([np.array([1, 5]), np.linspace(10, 100, 10)]) * 1e5
 ox_rho = np.zeros((len(P),len(T)))
 n2_rho = np.zeros((len(P),len(T)))
-# Initialize methane and propane density arrays with appropriate dimensions
+
 propane_rho = np.zeros((len(P),len(T_propane)))
 methane_rho = np.zeros((len(P),len(T_methane)))
 
@@ -39,12 +39,10 @@ for j, pressure in enumerate(P):
         ox_rho[j,i] = ox.density
         n2_rho[j,i] = n2.density
     
-    # Separate loop for propane with valid temperature range
     for i, temp in enumerate(T_propane):
         propane.update(Input.temperature(temp), Input.pressure(pressure))
         propane_rho[j,i] = propane.density
-        
-    # Separate loop for methane with valid temperature range
+
     for i, temp in enumerate(T_methane):
         methane.update(Input.temperature(temp), Input.pressure(pressure))
         methane_rho[j,i] = methane.density
@@ -62,10 +60,10 @@ for i in range(len(P)):
     plt.plot(T+273.15, n2_rho[i,:], label=f'{P[i]/1e5} bar')
     plt.figure(diff_fig)
     plt.plot(T+273.15, ox_rho[i,:]-n2_rho[i,:], label=f'{P[i]/1e5} bar')
-    # Use methane-specific temperature array for methane plots
+
     plt.figure(methane_fig)
     plt.plot(T_methane+273.15, methane_rho[i,:], label=f'{P[i]/1e5} bar')
-    # Use propane-specific temperature array for propane plots
+    
     plt.figure(propane_fig)
     plt.plot(T_propane+273.15, propane_rho[i,:], label=f'{P[i]/1e5} bar')
 

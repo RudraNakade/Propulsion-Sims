@@ -11,7 +11,6 @@ Cd = 0.65
 D = 1 # mm
 A = np.pi * 0.25 * 1e-6 * D**2
 
-
 p = np.linspace(6.45,40,100) # bar
 mdot = np.zeros(len(p))
 mdot_choked = np.zeros(len(p))
