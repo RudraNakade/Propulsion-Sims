@@ -45,5 +45,10 @@ nitrous.update(Input.temperature(t_amb), Input.quality(0))
 
 print(f"Nitrous @ {t_amb:.1f} deg C -  saturation pressure: {nitrous.pressure/1e5:.2f} bar, density: {nitrous.density:.2f} kg/m^3")
 
+nitrous.update(Input.pressure(28*1e5), Input.quality(0))
+print(f"Nitrous vapor pressure: {nitrous.pressure/1e5:.2f} bar, density: {nitrous.density:.2f} kg/m^3")
+nitrous.update(Input.pressure(32*1e5), Input.quality(0))
+print(f"Nitrous vapor pressure: {nitrous.pressure/1e5:.2f} bar, density: {nitrous.density:.2f} kg/m^3")
+
 
 plt.show()

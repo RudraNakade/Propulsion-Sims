@@ -1,3 +1,4 @@
+from matplotlib.pylab import f
 import scipy.optimize
 from pyfluids import Fluid, FluidsList, Input
 import numpy as np
@@ -7,27 +8,31 @@ system("cls")
 
 ### Design parameters
 pc = 30e5 # chamber pressure (pa)
-target_dp = 30e5 * 0.25 # injector dp (pa)
+target_dp = 30e5 * 0.3 # injector dp (pa)
 
 rho = 790 # kg/m^3
 T = 20 # deg C
 
-mdot_total = 0.71 # kg/S
+mdot_total = 0.61379 # kg/S
 
 alpha = 60 # spray half angle (deg)
+# Recommended: 45 - 60 deg
 
 n_elements = 12 # number of injector elements
-n_inlet = 3 # number of tangential inlets per element
+n_inlet = 4 # number of tangential inlets per element
 
-nozzle_opening_coeff = 1.2
+nozzle_opening_coeff = 1.5
 
-Cd_inlet = 0.7
+Cd_inlet = 0.65
 
 ### Import data
 ubar_an_data = np.genfromtxt("coax_swirl_sizing\\bazarov_data\\ubar_an.csv", delimiter=",", names=True)
 phi_data = np.genfromtxt("coax_swirl_sizing\\bazarov_data\\phi.csv", delimiter=",", names=True)
 mu_data= np.genfromtxt("coax_swirl_sizing\\bazarov_data\\mu.csv", delimiter=",", names=True)
 alpha_data = np.genfromtxt("coax_swirl_sizing\\bazarov_data\\alpha.csv", delimiter=",", names=True)
+
+A_min = max(np.min(alpha_data["x"]), np.min(mu_data["x"]), np.min(phi_data["x"]), np.min(ubar_an_data["x"]))
+A_max = min(np.max(alpha_data["x"]), np.max(mu_data["x"]), np.max(phi_data["x"]), np.max(ubar_an_data["x"]))
 
 ### Sizer
 
@@ -50,7 +55,10 @@ n = 0
 ## Step 1 - calculate geometric characteristic parameter (A) and nozzle flow coefficient (mu)
 A = np.interp(alpha, alpha_data["y"], alpha_data["x"]) # (geometric characteristic parameter)
 
-while (alpha_diff > 1e-4) and (dp_diff > 1e-4):
+while (alpha_diff > 1e-4) or (dp_diff > 1e-4):
+    if A > A_max or A < A_min:
+        raise ValueError(f"A = {A:.3f} is out of bounds [{A_min:.3f}, {A_max:.3f}]")
+    
     mu = np.interp(A, mu_data["x"], mu_data["y"]) # (nozzle flow coefficient)
     phi = np.interp(A, phi_data["x"], phi_data["y"]) # (filling efficiency)
 
@@ -69,8 +77,8 @@ while (alpha_diff > 1e-4) and (dp_diff > 1e-4):
     # R_s - vortex chamber radius ------------ Bazarov: R_s = R_in + r_in
 
     # l_in = 1e-3 # assuming 1mm for now (depends on wall thickess of the element)
-    l_in = 3 * r_in
-    l_n = 1.25 * R_n
+    l_in = 3 * r_in # nvm this literally changes nothing so set to whatever
+    l_n = 2 * R_n
     l_s = 3 * R_n
     R_s = R_in + r_in
 
@@ -80,6 +88,8 @@ while (alpha_diff > 1e-4) and (dp_diff > 1e-4):
 
     ## Step 6 - calculate A_eq (eq 100), find mu_eq and alpha_eq using this
     A_eq = R_in * R_n / ((n_inlet * (r_in**2)) + 0.5 * friction_coeff * R_in * (R_in - R_n)) # eq 100
+    if A > A_max or A < A_min:
+        raise ValueError(f"A_eq = {A:.3f} is out of bounds [{A_min:.3f}, {A_max:.3f}]")
     mu_eq = np.interp(A_eq, mu_data["x"], mu_data["y"])
     alpha_eq = np.interp(A_eq, alpha_data["x"], alpha_data["y"])
 
@@ -102,8 +112,10 @@ while (alpha_diff > 1e-4) and (dp_diff > 1e-4):
 
     ## Step 10 - calculate new A value using new R_n
     # A_new = R_in * R_n / (n_inlet * (r_in ** 2))
+    # This didn't converge at all
 
     A_new = A / (alpha_eq / alpha)
+    # Using this instead from the PL sizing doc works great
 
     alpha_diff = abs((alpha - alpha_eq) / alpha)
 
@@ -158,6 +170,7 @@ print(f"{'Inlet arm radius (R_in)':<44}: {R_in*1e3:>8.3f} mm")
 print(f"{'Nozzle length (l_n)':<44}: {l_n*1e3:>8.3f} mm")
 print(f"{'Vortex chamber length (l_s)':<44}: {l_s*1e3:>8.3f} mm")
 print(f"{'Vortex chamber radius (R_s)':<44}: {R_s*1e3:>8.3f} mm")
+print(f"{'Total orifice area':<44}: {(n_inlet * np.pi * r_in**2 * 1e6):>8.3f} mm^2")
 
 print("\n" + "="*60)
 print(f"{'Pressure Drops':^60}")
@@ -168,4 +181,22 @@ print(f"{'Total pressure drop (total_dp)':<44}: {total_dp/1e5:>8.3f} bar")
 print(f"{'Total Injector stiffness':<44}: {1e2*stiffness:>8.2f} %")
 print(f"{'Inlet / Total dP ratio':<44}: {dp_inlet/total_dp:>8.3f}")
 
-print(f"Total orifice area: {(n_inlet * np.pi * r_in**2 * 1e6):.3f} mm^2")
+
+print("\n" + "="*60)
+print(f"{'Nitrous Injector Sizing':^60}")
+print("="*60)
+
+mdot_n2o = 2.14827 # kg/S
+cd_n2o = 0.45 # kg/s
+rho_n2o = 900 # kg/m^3
+
+wall_thickness = 0.75e-3 # m
+
+area_n2o = mdot_n2o / (cd_n2o * np.sqrt(2 * rho_n2o * target_dp)) # m^2
+print(f"Total N2O orifice area: {area_n2o * 1e6:.3f} mm^2")
+
+n2o_annulus_area = area_n2o / n_elements # m^2
+print(f"Total N2O annulus area: {n2o_annulus_area * 1e6:.3f} mm^2")
+
+n2o_annulus_r = np.sqrt((n2o_annulus_area / np.pi) + ((R_n + wall_thickness)**2)) # m
+print(f"N2O annulus OD: {n2o_annulus_r * 2e3:.3f} mm")
