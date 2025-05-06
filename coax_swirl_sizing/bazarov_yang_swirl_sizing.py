@@ -1,4 +1,3 @@
-from matplotlib.pylab import f
 import scipy.optimize
 from pyfluids import Fluid, FluidsList, Input
 import numpy as np
@@ -22,6 +21,7 @@ n_elements = 12 # number of injector elements
 n_inlet = 4 # number of tangential inlets per element
 
 nozzle_opening_coeff = 1.5
+# nozzle_opening_coeff = 0.862
 
 Cd_inlet = 0.65
 
@@ -96,6 +96,7 @@ while (alpha_diff > 1e-4) or (dp_diff > 1e-4):
     ## Step 7 - calculate hydraulic-loss coefficient in inlet passages
     passage_tilting_angle = 90 - (np.arctan(R_s / l_in) * 180 / np.pi) # eq 105
     # passage_tilting_angle = 90
+    # Doesn't seem to change the final sizing much
 
     # fig 25 - y1 = 0.9, y2 = 0.5, x1 = 30, x2 = 90
     hydraulic_loss_coeff_inlet = np.interp(passage_tilting_angle, [30, 90], [0.9, 0.5]) # using fig 25
@@ -181,7 +182,6 @@ print(f"{'Total pressure drop (total_dp)':<44}: {total_dp/1e5:>8.3f} bar")
 print(f"{'Total Injector stiffness':<44}: {1e2*stiffness:>8.2f} %")
 print(f"{'Inlet / Total dP ratio':<44}: {dp_inlet/total_dp:>8.3f}")
 
-
 print("\n" + "="*60)
 print(f"{'Nitrous Injector Sizing':^60}")
 print("="*60)
@@ -199,4 +199,6 @@ n2o_annulus_area = area_n2o / n_elements # m^2
 print(f"Total N2O annulus area: {n2o_annulus_area * 1e6:.3f} mm^2")
 
 n2o_annulus_r = np.sqrt((n2o_annulus_area / np.pi) + ((R_n + wall_thickness)**2)) # m
+print(f"N2O annulus inner radius: {(R_n + wall_thickness) * 1e3:.3f} mm")
+print(f"N2O annulus ID: {(R_n + wall_thickness) * 2e3:.3f} mm")
 print(f"N2O annulus OD: {n2o_annulus_r * 2e3:.3f} mm")

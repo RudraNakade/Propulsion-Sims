@@ -1656,7 +1656,7 @@ if __name__ == '__main__':
     # evan_daniel_inj.size_ox_holes(Cd = oxCd, d = in2mm(1/32))
     # evan_daniel_inj.size_ox_anulus(Cd = oxCd, ID = in2mm(1/16), OD = in2mm(0.08))
 
-    ambient_T = 5
+    ambient_T = 15
 
     ipa_impinging = injector()
     ipa_impinging.size_fuel_holes(Cd = 0.5, d = 0.2)
@@ -1676,14 +1676,14 @@ if __name__ == '__main__':
 
     coax_inj_ipa_high_p = injector() # Gas N2O / IPA
     coax_inj_ipa_high_p.size_fuel_holes(Cd = 0.45, d = 0.2)
-    coax_inj_ipa_high_p.size_ox_anulus(Cd = 0.65, ID = 0.5, OD = 0.90) # This seems to sim well, probably final
+    coax_inj_ipa_high_p.size_ox_anulus(Cd = 0.65, ID = 0.5, OD = 0.95) # This seems to sim well, probably final
     # Sweeping values gives ~ 3-6 OF which should be good for ignition
 
     coax_inj_ipa_ln2o = injector() # Liquid N2O / IPA
     coax_inj_ipa_ln2o.size_fuel_holes(Cd = 0.5, d = 0.2)
     coax_inj_ipa_ln2o.size_ox_anulus(Cd = 0.4, ID = 0.5, OD = 0.7)
 
-    igniter.dt = 2.5e-3
+    igniter.dt = 3e-3
     igniter.de = 4.5e-3
     igniter.update()
     # igniter.eps = 1
@@ -1702,14 +1702,14 @@ if __name__ == '__main__':
 
     ipa_p = 35
 
-    # OFsweep(
-    #     fuel = 'Isopropanol',
-    #     ox = 'N2O',
-    #     OFstart = 0.5,
-    #     OFend = 12,
-    #     pc = 15,
-    #     pe = 1,
-    # )
+    OFsweep(
+        fuel = 'Propane',
+        ox = 'GOX',
+        OFstart = 0.1,
+        OFend = 0.5,
+        pc = 5,
+        pe = 1,
+    )
 
     igniter.system_combustion_sim(
         fuel = 'Isopropanol',
@@ -1750,28 +1750,29 @@ if __name__ == '__main__':
         ox_rho = nitrous_density,
     )
 
-    l9 = engine('configs/test.cfg')
-    l9.combustion_sim(
-        fuel = 'Ethanol',
-        ox = 'LOX',
-        OF = 1,
-        pc = 30,
-    )
-    l9.print_data()
 
-    l9.thermal_sim(
-        wall_k = 130,
-        n_channels = 50,
-        h_rib = 1.5e-3,
-        tw = 0.7e-3,
-        channel_arc_angle = 3.8,
-        coolant = FluidsList.Ethanol,
-        coolant_mdot = 0.5 * l9.fuel_mdot,
-        coolant_T_in = 300,
-        coolant_p_in = 40,
-        rev_flow = False,
-    )
-    l9.plot_thermals(f"Engine Thermals, OF = {l9.OF:.2f}, pc = {l9.pc:.2f} bar")
+    # l9 = engine('configs/test.cfg')
+    # l9.combustion_sim(
+    #     fuel = 'Ethanol',
+    #     ox = 'LOX',
+    #     OF = 1.5,
+    #     pc = 20,
+    # )
+    # l9.print_data()
+
+    # l9.thermal_sim(
+    #     wall_k = 130,
+    #     n_channels = 50,
+    #     h_rib = 1.5e-3,
+    #     tw = 0.7e-3,
+    #     channel_arc_angle = 3.8,
+    #     coolant = FluidsList.Ethanol,
+    #     coolant_mdot = 0.5 * l9.fuel_mdot,
+    #     coolant_T_in = 300,
+    #     coolant_p_in = 40,
+    #     rev_flow = False,
+    # )
+    # l9.plot_thermals(f"Engine Thermals, OF = {l9.OF:.2f}, pc = {l9.pc:.2f} bar")
 
     # l9.save()
 
