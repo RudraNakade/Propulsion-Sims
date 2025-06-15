@@ -5,8 +5,8 @@ from os import system
 
 system('cls')
 
-in2mm = lambda x: x * 25.4
-mm2in = lambda x: x / 25.4
+in2mm = lambda x: x * 25.4e-3
+mm2in = lambda x: x / 25.4e-3
 
 def pipe_dp(id, L, mdot, rho, dynamic_viscosity, roughness = -1, rel_roughness = -1):
     """
@@ -44,8 +44,6 @@ def pipe_dp(id, L, mdot, rho, dynamic_viscosity, roughness = -1, rel_roughness =
     >>> pipe_dp(id=10, L=1, mdot=0.1, rho=1000, dynamic_viscosity=0.001, rel_roughness=1e-3)
     """
 
-    id *= 1e-3
-
     def turb_f(f, Re, rel_roughness):
         return (1 / np.sqrt(f)) + 2 * np.log10((rel_roughness/3.7) + 2.51/(Re*np.sqrt(f)))
 
@@ -54,11 +52,11 @@ def pipe_dp(id, L, mdot, rho, dynamic_viscosity, roughness = -1, rel_roughness =
     elif (roughness != -1) and (rel_roughness != -1):
         raise ValueError('Only one of roughness or relative roughness must be defined')
     elif roughness != -1:
-        rel_roughness = 1e-3 * roughness / id
+        rel_roughness = roughness / id
     else:
         roughness = rel_roughness * id
 
-    print(f'Relative roughness = {rel_roughness:.2e}, Roughness = {roughness:.2e}')
+    print(f'Relative roughness = {rel_roughness:.2e}, Roughness = {roughness*1e3:.4f} mm')
 
     A = 0.25 * np.pi * id**2
     v = mdot / (rho * A)
@@ -75,25 +73,37 @@ def pipe_dp(id, L, mdot, rho, dynamic_viscosity, roughness = -1, rel_roughness =
     
     return f * L * rho * v**2 / (2 * id)
 
-A = 1.5*0.4
-dh = np.sqrt(4*A/np.pi)
+
 
 fuel = Fluid(FluidsList.Ethanol)
-fuel.update(Input.temperature(60), Input.pressure(40e5))
+fuel.update(Input.temperature(20), Input.pressure(25e5))
 dyn_visc_f = fuel.dynamic_viscosity
 
-rho = 900
+rho = 790
 mu = dyn_visc_f
-id = in2mm(0.5 - 2 * 0.036)
-L = 1e-3 * 730
-pipe_rough = 1e-3 * 0.5
-mdot = 2.4
+id = in2mm((3/8) - 2 * 0.036)
+L = 1.5
+pipe_roughness = 1e-3 * 0.015
+mdot = 0.6
 
-line_dp = pipe_dp(id, L, mdot, rho, mu, roughness=pipe_rough)
+line_dp = pipe_dp(id, L, mdot, rho, mu, roughness=pipe_roughness)
 
-print(f'Line ID: {id:.3f} mm, Length: {L:.3f} m, Flow rate: {mdot:.4f} kg/s')
+print(f'Line ID: {id*1e3:.3f} mm, Length: {L:.3f} m, Flow rate: {mdot:.4f} kg/s')
+print(f'Line DP: {line_dp/1e5:.3f} Bar\n')
+
+A = 1.5 * 0.4 * 1e-6
+dh = np.sqrt(4*A/np.pi)
+id = dh
+L = 150e-3
+pipe_roughness = 15e-6
+mdot = 1.03825 * 0.224 / 48
+
+line_dp = pipe_dp(id, L, mdot, rho, mu, roughness=pipe_roughness)
+
+print(f'Line ID: {id*1e3:.3f} mm, Length: {L:.3f} m, Flow rate: {mdot:.4f} kg/s')
 print(f'Line DP: {line_dp/1e5:.3f} Bar')
 
-CdA = 1e6 * mdot / np.sqrt(2 * line_dp * rho)
 
-print(f'CdA: {CdA:.3f} mm^2')
+# CdA = 1e6 * mdot / np.sqrt(2 * line_dp * rho)
+
+# print(f'CdA: {CdA:.3f} mm^2')

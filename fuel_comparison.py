@@ -16,11 +16,12 @@ add_new_fuel('nitromethanol', card_str )
 fuels = []
 
 ox = 'LOX'
-pc = 588/14.5
+pc = 20
 pe = 1.01325
 nozzle_eff = 1
 
 OF_lims = [0.05, 4]
+# OF_lims = [0.05, 10]
 n_points = 250
 
 fuels.append('Methanol')

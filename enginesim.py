@@ -1,5 +1,6 @@
 from ast import Return
 from math import nan
+from string import printable
 from matplotlib.pylab import f
 from rocketcea.cea_obj_w_units import CEA_Obj
 from rocketcea.cea_obj import add_new_fuel
@@ -211,27 +212,42 @@ class engine:
         if path.exists(self.file) and path.getsize(self.file) > 0:
             with open(self.file, 'r') as input_file:
                 data = input_file.readlines()
-                self.dc = float(data[0].split()[1]) * 1e-3
-                self.dt = float(data[1].split()[1]) * 1e-3
-                self.de = float(data[2].split()[1]) * 1e-3
-                self.eps = (self.de/self.dt)**2
-                self.conv_angle = float(data[4].split()[1])
-                self.lc = float(data[5].split()[1]) * 1e-3
-                self.le = float(data[6].split()[1]) * 1e-3
-                self.theta_n = float(data[7].split()[1])
-                self.theta_e = float(data[8].split()[1])
-
+                is_rao = data[0].split()[-1]
+                self.dc = float(data[1].split()[-1]) * 1e-3
+                self.dt = float(data[2].split()[-1]) * 1e-3
+                self.de = float(data[3].split()[-1]) * 1e-3
+                self.lc = float(data[4].split()[-1]) * 1e-3
+                self.R2 = float(data[5].split()[-1]) * 1e-3
+                if is_rao.lower() == 'true':
+                    self.rao = True
+                    self.theta_n = float(data[7].split()[-1])
+                    self.theta_e = float(data[8].split()[-1])
+                    self.le = float(data[9].split()[-1]) * 1e-3
+                    self.ln = 0
+                elif is_rao.lower() == 'false':
+                    self.rao = False
+                    self.ln = float(data[8].split()[-1]) * 1e-3
+                    self.div_angle = float(data[7].split()[-1])
+                else:
+                    raise ValueError("Invalid value for 'is_rao_nozzle' in config file. Expected 'True' or 'False'.")
+                self.conv_angle = float(data[6].split()[-1])
+                
+            self.eps = (self.de/self.dt)**2
             self.rc = self.dc/2
             self.rt = self.dt/2
             self.re = self.de/2
             self.ac = np.pi*self.rc**2
             self.at = np.pi*self.rt**2
             self.ae = np.pi*self.re**2
-            self.cr = self.ac/self.at      
-            self.rao_percentage = 100 * np.tan(np.deg2rad(15)) * self.le / ((np.sqrt(self.eps)-1)*self.rt)
-            self.R2 = (self.rc - self.rt)/(1 - np.cos(np.deg2rad(self.conv_angle))) - 1.5*self.rt
-            self.ltotal = self.lc + self.le
-
+            self.cr = self.ac/self.at
+            if self.rao:
+                self.rao_percentage = 100 * np.tan(np.deg2rad(15)) * self.le / ((np.sqrt(self.eps)-1)*self.rt)
+            else:
+                self.le = (self.re - self.rt) / np.tan(np.deg2rad(self.div_angle))
+            self.R2_max = (self.rc - self.rt)/(1 - np.cos(np.deg2rad(self.conv_angle))) - 1.5*self.rt
+            if self.R2 == -1:
+                self.R2 = self.R2_max
+            self.ltotal = self.lc + self.le + self.ln
             self.cstar_eff = 1
 
     def update(self):
@@ -243,9 +259,11 @@ class engine:
         self.ae = np.pi*self.re**2
         self.cr = self.ac/self.at      
         self.eps = (self.de/self.dt)**2
-        self.rao_percentage = 100 * np.tan(np.deg2rad(15)) * self.le / ((np.sqrt(self.eps)-1)*self.rt)
-        self.R2 = (self.rc - self.rt)/(1 - np.cos(np.deg2rad(self.conv_angle))) - 1.5*self.rt
-        self.ltotal = self.lc + self.le
+        if self.rao:
+            self.rao_percentage = 100 * np.tan(np.deg2rad(15)) * self.le / ((np.sqrt(self.eps)-1)*self.rt)
+        else:
+            self.le = (self.re - self.rt) / np.tan(np.deg2rad(self.div_angle))
+        self.ltotal = self.lc + self.le + self.ln
 
     def gen_cea_obj(self):
         self.cea = CEA_Obj(
@@ -425,7 +443,7 @@ class engine:
         self.ox_dp = self.ox_stiffness * self.pc
 
         injector.fuel_CdA = self.fuel_mdot / np.sqrt(2*fuel_rho*self.fuel_dp*1e5)
-        injector.fuel_A = self.fuel_CdA / self.fuel_Cd
+        injector.fuel_A = injector.fuel_CdA / self.fuel_Cd
         injector.ox_CdA = self.ox_mdot / np.sqrt(2*ox_rho*self.ox_dp*1e5)
         injector.ox_A = injector.ox_CdA / self.ox_Cd
 
@@ -561,45 +579,62 @@ class engine:
     def generate_contour(self):
         self.n_points = 20
 
+        l_conv = (self.rc - self.rt) / np.tan(np.deg2rad(self.conv_angle))
+        self.r = np.array([self.rc, self.rc])
+        self.x = np.array([0, (self.lc - l_conv)])
+
         # Converging arc
-        l = np.linspace(0, (self.R2*np.sin(np.deg2rad(self.conv_angle))), int(1.5*self.n_points))
-        r = np.sqrt(self.R2**2 - l**2) + self.rc - self.R2
-        l = l + (self.lc - (self.R2+1.5*self.rt)*np.sin(np.deg2rad(self.conv_angle)))
+        if self.R2 > 0:
+            l = np.linspace(0, (self.R2*np.sin(np.deg2rad(self.conv_angle))), int(1.5*self.n_points))
+            r = np.sqrt(self.R2**2 - l**2) + self.rc - self.R2
+            l = l + (self.lc - (self.R2+1.5*self.rt)*np.sin(np.deg2rad(self.conv_angle)))
+            self.r = np.append(self.r, r[1:])
+            self.x = np.append(self.x, l[1:])
 
-        # Throat upstream arc
+        if self.R2 < self.R2_max:
+            self.r = np.append(self.r, [self.rt])
+            self.x = np.append(self.x, [self.lc])
 
-        l2 = np.linspace(0, (1.5*self.rt*np.sin(np.deg2rad(self.conv_angle))), int(self.n_points))
-        r2 = 2.5*self.rt - np.sqrt((1.5*self.rt)**2 - (l2 - 1.5*self.rt*np.sin(np.deg2rad(self.conv_angle)))**2)
-        l2 = l2 + self.R2*np.sin(np.deg2rad(self.conv_angle)) + (self.lc - (self.R2+1.5*self.rt)*np.sin(np.deg2rad(self.conv_angle)))
+        if self.rao:
+            
+
+            # Throat upstream arc
+            l2 = np.linspace(0, (1.5*self.rt*np.sin(np.deg2rad(self.conv_angle))), int(self.n_points))
+            r2 = 2.5*self.rt - np.sqrt((1.5*self.rt)**2 - (l2 - 1.5*self.rt*np.sin(np.deg2rad(self.conv_angle)))**2)
+            l2 = l2 + self.R2*np.sin(np.deg2rad(self.conv_angle)) + (self.lc - (self.R2+1.5*self.rt)*np.sin(np.deg2rad(self.conv_angle)))
+            
+            # Throat downstream arc
+            l3 = np.linspace(0, (0.382*self.rt*np.sin(np.deg2rad(self.theta_n))), int(0.3*self.n_points))
+            r3 = 1.382*self.rt - np.sqrt((0.382*self.rt)**2 - l3**2)
+            l3 = l3 + self.lc
+
+            # Parabolic nozzle
+            t = np.concatenate((np.linspace(0, 0.2, int(1*self.n_points)), np.linspace(0.2, 1, int(1*self.n_points))))
+
+            Nx = l3[-1]
+            Ny = r3[-1]
+            Ex = self.lc + self.le
+            Ey = self.re
+
+            m1 = np.tan(np.deg2rad(self.theta_n))
+            m2 = np.tan(np.deg2rad(self.theta_e))
+            c1 = Ny - m1*Nx
+            c2 = Ey - m2*Ex
+            Qx = (c2 - c1)/(m1 - m2)
+            Qy = (m1*c2 - m2*c1)/(m1 - m2)
+
+            l4 = Nx*(1-t)**2 + 2*(1-t)*t*Qx + Ex*t**2
+            r4 = Ny*(1-t)**2 + 2*(1-t)*t*Qy + Ey*t**2
+
+            self.r = np.concatenate((self.r, r2[1:], r3[1:], r4[1:]))
+            self.x = np.concatenate((self.x, l2[1:], l3[1:], l4[1:]))
         
-        # Throat downstream arc
+        else:
+            # throat + diverging section
+            self.r = np.append(self.r, [self.rt, self.re])
+            self.x = np.append(self.x, [self.ln + self.lc, self.ltotal])
 
-        l3 = np.linspace(0, (0.382*self.rt*np.sin(np.deg2rad(self.theta_n))), int(0.3*self.n_points))
-        r3 = 1.382*self.rt - np.sqrt((0.382*self.rt)**2 - l3**2)
-        l3 = l3 + self.lc
-
-        # Parabolic nozzle
-
-        t = np.concatenate((np.linspace(0, 0.2, int(1*self.n_points)), np.linspace(0.2, 1, int(1*self.n_points))))
-
-        Nx = l3[-1]
-        Ny = r3[-1]
-        Ex = self.lc + self.le
-        Ey = self.re
-
-        m1 = np.tan(np.deg2rad(self.theta_n))
-        m2 = np.tan(np.deg2rad(self.theta_e))
-        c1 = Ny - m1*Nx
-        c2 = Ey - m2*Ex
-        Qx = (c2 - c1)/(m1 - m2)
-        Qy = (m1*c2 - m2*c1)/(m1 - m2)
-
-        l4 = Nx*(1-t)**2 + 2*(1-t)*t*Qx + Ex*t**2
-        r4 = Ny*(1-t)**2 + 2*(1-t)*t*Qy + Ey*t**2
-
-        contour = [np.concatenate((np.array(self.rc*np.ones(2*self.n_points)), r[1:], r2[1:], r3[1:], r4[1:])), np.concatenate((np.array(np.linspace(0, l[0], 2*self.n_points)), l[1:], l2[1:], l3[1:], l4[1:]))] # [radius, axial length]
-        self.r = contour[0]
-        self.x = contour[1]
+        self.x = self.x - self.lc
         self.stations = len(self.r)
 
     def show_contour(self):
@@ -613,8 +648,8 @@ class engine:
         plt.xlabel('Axial Distance (mm)')
         plt.ylabel('Radius (mm)')
         plt.title('Chamber Contour')
-        plt.axis('equal')
-        plt.xlim(left=0)
+        plt.gca().set_aspect('equal', adjustable='datalim')
+        plt.xlim(left=self.x[0]*1e3, right=self.x[-1]*1e3)
         plt.legend()
 
     def save(self):
@@ -632,44 +667,52 @@ class engine:
     def print_data(self):
         print('-----------------------------------')
         print(f'{self.fuel} / {self.ox}\n')
-        print(f'OF:                 {self.OF:.3f}')
-        print(f'Chamber Pressure:   {self.pc:.2f} bar')
-        print(f'Ambient Pressure:   {self.pamb:.2f} bar')
-        print(f'Thrust:             {self.thrust:.2f} N')
-        print(f'ISP:                {self.isp:.2f} s')
-        print(f'SL ISP:             {self.ispsea:.2f} s')
-        print(f'Vac ISP:            {self.ispvac:.2f} s')
-        print(f'C*:                 {self.cstar:.2f} m/s')
-        print(f'Cf:                 {self.cf:.4f}\n')
-        print(f'Chamber Temp:       {self.Tg_c:.2f} K')
-        print(f'Throat Temp:        {self.Tg_t:.2f} K')
-        print(f'Exit Temp:          {self.Tg_e:.2f} K\n')
-        print(f'Throat Pressure:    {self.pt:.2f} bar')
-        print(f'Exit Pressure:      {self.pe:.2f} bar\n')
-        print(f'Exit Mach Number:   {self.Me:.3f}')
-        print(f'Expansion Ratio:    {self.eps:.3f}')
-        print(f'Exit Condition:     {self.exitcond}\n')
+        print(f'{"Parameter":<20} {"Value":<10} {"Unit"}')
+        print(f'{"OF:":<20} {self.OF:<10.3f}')
+        print(f'{"Chamber Pressure:":<20} {self.pc:<10.2f} bar')
+        print(f'{"Ambient Pressure:":<20} {self.pamb:<10.2f} bar')
+        print(f'{"Thrust:":<20} {self.thrust:<10.2f} N')
+        print(f'{"ISP:":<20} {self.isp:<10.2f} s')
+        print(f'{"SL ISP:":<20} {self.ispsea:<10.2f} s')
+        print(f'{"Vac ISP:":<20} {self.ispvac:<10.2f} s')
+        print(f'{"C*:":<20} {self.cstar:<10.2f} m/s')
+        print(f'{"Cf:":<20} {self.cf:<10.4f}\n')
+        print(f'{"Chamber Temp:":<20} {self.Tg_c:<10.1f} K')
+        print(f'{"Throat Temp:":<20} {self.Tg_t:<10.1f} K')
+        print(f'{"Exit Temp:":<20} {self.Tg_e:<10.1f} K\n')
+        print(f'{"Throat Pressure:":<20} {self.pt:<10.2f} bar')
+        print(f'{"Exit Pressure:":<20} {self.pe:<10.2f} bar')
+        print(f'{"Pc loss ratio:":<20} {self.PinjPcomb:<10.3f}\n')
+        print(f'{"Exit Mach Number:":<20} {self.Me:<10.3f}')
+        print(f'{"Expansion Ratio:":<20} {self.eps:<10.3f}')
+        print(f'{"Exit Condition:":<20} {self.exitcond:<10}\n')
         if(self.mdot >= 1e-1):
-            print(f'Total mdot:         {self.mdot:.3f} kg/s')
-            print(f'Ox mdot:            {self.ox_mdot:.3f} kg/s')
-            print(f'Fuel mdot:          {self.fuel_mdot:.3f} kg/s\n')
+            print(f'{"Total mdot:":<20} {self.mdot:<10.4f} kg/s')
+            print(f'{"Ox mdot:":<20} {self.ox_mdot:<10.4f} kg/s')
+            print(f'{"Fuel mdot:":<20} {self.fuel_mdot:<10.4f} kg/s\n')
         else:
-            print(f'Total mdot:         {self.mdot*1e3:.2f} g/s')
-            print(f'Ox mdot:            {self.ox_mdot*1e3:.2f} g/s')
-            print(f'Fuel mdot:          {self.fuel_mdot*1e3:.2f} g/s\n')
-        print(f'Chamber Diameter:   {self.dc*1e3:.3f} mm')
-        print(f'Throat Diameter:    {self.dt*1e3:.3f} mm')
-        print(f'Exit Diameter:      {self.de*1e3:.3f} mm\n')
-        print(f'Chamber Length      {self.lc*1e3:.3f} mm')
-        print(f'Exit Length         {self.le*1e3:.3f} mm')
-        print(f'Total Length:       {(self.lc+self.le)*1e3:.3f} mm\n')
-        print(f'Contraction Ratio:  {self.cr:.3f}')
-        print(f'Nozzle Inlet Angle: {self.theta_n:.3f}°')
-        print(f'Nozzle Exit Angle:  {self.theta_e:.3f}°')
-        print(f'Pinj/Pcomb:         {self.PinjPcomb:.3f}\n')
+            print(f'{"Total mdot:":<20} {self.mdot*1e3:<10.4f} g/s')
+            print(f'{"Ox mdot:":<20} {self.ox_mdot*1e3:<10.4f} g/s')
+            print(f'{"Fuel mdot:":<20} {self.fuel_mdot*1e3:<10.4f} g/s\n')
+        print(f'{"Chamber Diameter:":<20} {self.dc*1e3:<10.3f} mm')
+        print(f'{"Throat Diameter:":<20} {self.dt*1e3:<10.3f} mm')
+        print(f'{"Exit Diameter:":<20} {self.de*1e3:<10.3f} mm\n')
+        print(f'{"Chamber Length:":<20} {self.lc*1e3:<10.3f} mm')
+        if self.rao == False:
+            print(f'{"Nozzle Length:":<20} {self.ln*1e3:<10.3f} mm')
+        print(f'{"Exit Length:":<20} {self.le*1e3:<10.3f} mm')
+        print(f'{"Total Length:":<20} {self.ltotal*1e3:<10.3f} mm\n')
+        print(f'{"Contraction Ratio:":<20} {self.cr:<10.3f}')
+        print(f'{"Converging Angle:":<20} {self.conv_angle:<10.3f}°')
+        if self.rao:
+            print(f'{"Nozzle Inlet Angle:":<20} {self.theta_n:<10.3f}°')
+            print(f'{"Nozzle Exit Angle:":<20} {self.theta_e:<10.3f}°')
+        else:
+            print(f'{"Diverging Angle:":<20} {self.div_angle:<10.3f}°')
         print('-----------------------------------')
 
     def thermal_sim(self, wall_k, n_channels, h_rib, tw, channel_arc_angle, coolant, coolant_mdot, coolant_T_in, coolant_p_in, rev_flow):
+        # Seems way off at higher pc with way too high wall temp
         self.generate_contour()
 
         self.wall_k = wall_k
@@ -710,8 +753,11 @@ class engine:
                 mach = 1e-7
             return (area_ratio - ((1.0/mach) * ((1 + 0.5*(gamma-1)*mach*mach) / ((gamma + 1)/2))**((gamma+1) / (2*(gamma-1)))))
 
-        self.throat_rcurv =  self.rt * 0.941
         t_next = coolant_T_in
+
+        self.coolant_class = Fluid(self.coolant)
+        self.coolant_class.update(Input.pressure(coolant_p_in*1e5),  Input.temperature(coolant_T_in-273.15))
+        coolant_heat = 0
 
         for j in range(self.stations):
             if rev_flow == True:
@@ -725,9 +771,9 @@ class engine:
             A = np.pi * r * r
             self.Tc[i] = t_next
 
-            self.coolant_class = Fluid(self.coolant)
             self.coolant_class.update(Input.pressure(coolant_p_in*1e5),  Input.temperature(self.Tc[i] - 273.15))
-
+            # self.coolant_class.update(Input.enthalpy(self.coolant_class.enthalpy + coolant_heat),  Input.pressure(coolant_p_in*1e5)) 
+            
             self.rho_coolant[i] = self.coolant_class.density 
             self.cp_coolant[i] = self.coolant_class.specific_heat
             self.mu_coolant[i] = self.coolant_class.dynamic_viscosity
@@ -735,34 +781,37 @@ class engine:
             self.v_coolant[i] = self.coolant_mdot / (self.rho_coolant[i] * self.channel_area[i] * self.n_channels)
             self.Re_coolant[i] = self.rho_coolant[i] * self.v_coolant[i] * self.d_h[i] / self.mu_coolant[i]
             self.Pr_coolant[i] = self.mu_coolant[i] * self.cp_coolant[i] / self.k_coolant[i]
-            self.Nu_coolant[i] = 0.023 * self.Re_coolant[i]**0.8 * self.Pr_coolant[i]**0.4
+            self.Nu_coolant[i] = 0.023 * self.Re_coolant[i]**0.8 * self.Pr_coolant[i]**0.4 # Dittus-Boelter
             self.hc[i] = self.Nu_coolant[i] * self.k_coolant[i] / self.d_h[i]
 
-            if self.x[i] == self.lc:
-                self.gamma[i] = self.gam_t
-                self.pr[i] = self.pr_t
-                self.M[i] = 1
-            elif self.x[i] < self.lc:
+            # if self.x[i] == 0: # Throat
+            #     self.gamma[i] = self.gam_t
+            #     self.pr[i] = self.pr_t
+            #     self.M[i] = 1
+            throat_rcurv =  self.rt * (0.382 + 1.5)/2
+            if self.x[i] < 0: # Converging section
                 self.gamma[i] = (self.gam_t - self.gam_c)/(self.rt - self.rc) * (r - self.rc) + self.gam_c
                 self.pr[i] = (self.pr_t - self.pr_c)/(self.rt - self.rc) * (r - self.rc) + self.pr_c
                 self.M[i] = root_scalar(machfunc, args=(A, self.gamma[i]), bracket=[0, 1]).root
-            else:
+                # throat_rcurv =  self.rt * 0.382
+            else: # Diverging section
                 self.gamma[i] = (0.5*(0.8*self.gam_e+1.2*self.gam_t) - self.gam_t)/(self.re - self.rt) * (r - self.rt) + self.gam_t
                 self.pr[i] = (self.pr_e - self.pr_t)/(self.re - self.rt) * (r - self.rt) + self.pr_t
                 self.M[i] = root_scalar(machfunc, args=(A, self.gamma[i]), bracket=[1, 5]).root
+                # throat_rcurv =  self.rt * 1.5
 
             self.Tg[i] = self.Tg_c * ((1 + (0.5 * (self.pr[i]**(1/3)) * (self.gamma[i] - 1) * (self.M[i]**2))) / (1 + 0.5 * (self.gamma[i] - 1) * self.M[i]**2))
             # self.Tg[i] = self.Tg_c / (1 + 0.5 * (self.gamma[i] - 1) * self.M[i]**2)
             self.pg[i] = self.pc * (self.Tg[i] / self.Tg_c)**(self.gamma[i] / (self.gamma[i] - 1))
 
-            bartz = ((0.026 / (self.dt**0.2))) * ((self.mu_c**0.2) * self.cp_c / (self.pr_c**0.6)) * ((self.pc * 1e5 / self.cstar)**0.8) * ((self.dt / self.throat_rcurv)**0.1) * ((self.at / A)**0.9)
+            bartz = ((0.026 / (self.dt**0.2))) * ((self.mu_c**0.2) * self.cp_c / (self.pr_c**0.6)) * ((self.pc * self.cstar)**0.8) * ((self.dt / throat_rcurv)**0.1) * ((self.at / A)**0.9)
 
             if j != self.stations - 1:
                 dA = np.pi * (self.r[i] + self.r[inext]) * np.sqrt((self.r[i] - self.r[inext]) ** 2 + (self.x[inext] - self.x[i]) ** 2)
 
             def wall_temp_func(Twg):
                 correction_factor = (((0.5 * (Twg / self.Tg_c) * (1 + (0.5 * (self.gamma[i] - 1)) * (self.M[i]**2)) + 0.5)**0.68) * ((1 + 0.5 * (self.gamma[i] - 1) * (self.M[i]**2))**0.12))**-1
-                hg = bartz * correction_factor
+                hg = bartz * correction_factor * 0.369375
                 q = hg * (self.Tg[i] - Twg)
                 Twc = (q / self.hc[i]) + self.Tc[i]
                 Twg_new = (q * self.tw / self.wall_k) + Twc
@@ -776,13 +825,15 @@ class engine:
             else:
                 self.Twg[i] = sol.root
 
-            correction_factor = (((0.5 * (self.Twg[i] / self.Tg_c) * (1 + (0.5 * (self.gamma[i] - 1)) * (self.M[i]**2)) + 0.5)**0.68) * ((1 + 0.5 * (self.gamma[i] - 1) * (self.M[i]**2))**0.12))**-1
-            self.hg[i] = bartz * correction_factor
+            correction_factor = (((0.5 * (self.Twg[i] / self.Tg_c) * (1 + (0.5 * (self.gamma[i] - 1) * self.M[i]**2)) + 0.5)**0.68) * ((1 + 0.5 * (self.gamma[i] - 1) * self.M[i]**2))**0.12)**-1
+            self.hg[i] = bartz * correction_factor * 0.369375
             self.q[i] = self.hg[i] * (self.Tg[i] - self.Twg[i])
             self.Twc[i] = (self.q[i] / self.hc[i]) + self.Tc[i]
             self.Twg[i] = (self.q[i] * self.tw / self.wall_k) + self.Twc[i]
 
-            t_next = (self.q[i] * dA / (self.coolant_mdot * self.cp_coolant[i])) + self.Tc[i]
+            coolant_heat = self.q[i] * dA / self.coolant_mdot
+
+            t_next = (coolant_heat / self.cp_coolant[i]) + self.Tc[i]
 
             self.total_heat_flux += self.q[i] * dA
 
@@ -818,7 +869,7 @@ class engine:
         self.channel_area = self.channel_width * self.h_rib
         self.d_h = 2 * self.channel_area / (self.h_rib+self.channel_width)
         self.coolant_mdot = coolant_mdot
-        self.throat_rcurv =  self.rt * 0.941
+        throat_rcurv =  self.rt * 0.941
         t_next = coolant_T_in
         self.film_mdot_in = film_mdot
         t_f_next = film_T_in
@@ -884,22 +935,25 @@ class engine:
             self.Nu_coolant[i] = 0.023 * self.Re_coolant[i]**0.8 * self.Pr_coolant[i]**0.4
             self.hc[i] = self.Nu_coolant[i] * self.k_coolant[i] / self.d_h[i]
 
-            if self.x[i] == self.lc:
+            if self.x[i] == 0: # Throat
                 self.gamma[i] = self.gam_t
                 self.pr[i] = self.pr_t
                 self.M[i] = 1
-            elif self.x[i] < self.lc:
+            throat_rcurv =  self.rt * (0.382 + 1.5)/2
+            if self.x[i] < 0: # Converging section
                 self.gamma[i] = (self.gam_t - self.gam_c)/(self.rt - self.rc) * (r - self.rc) + self.gam_c
                 self.pr[i] = (self.pr_t - self.pr_c)/(self.rt - self.rc) * (r - self.rc) + self.pr_c
                 self.M[i] = root_scalar(machfunc, args=(A, self.gamma[i]), bracket=[0, 1]).root
-            else:
+                # throat_rcurv =  self.rt * 0.382
+            else: # Diverging section
                 self.gamma[i] = (0.5*(0.8*self.gam_e+1.2*self.gam_t) - self.gam_t)/(self.re - self.rt) * (r - self.rt) + self.gam_t
                 self.pr[i] = (self.pr_e - self.pr_t)/(self.re - self.rt) * (r - self.rt) + self.pr_t
                 self.M[i] = root_scalar(machfunc, args=(A, self.gamma[i]), bracket=[1, 5]).root
+                # throat_rcurv =  self.rt * 1.5
 
             self.Tg[i] = (self.Tg_c / (1 + 0.5 * (self.gamma[i] - 1) * self.M[i]**2))
             self.pg[i] = self.pc * (self.Tg[i] / self.Tg_c)**(self.gamma[i] / (self.gamma[i] - 1))
-            bartz = ((0.026 / (self.dt**0.2))) * (self.mu_c**0.2 * self.cp_c / (self.pr_c**0.6)) * ((self.pc *1e5 / self.cstar)**0.8) * ((self.dt / self.throat_rcurv)**0.1) * ((self.at / A)**0.9)
+            bartz = ((0.026 / (self.dt**0.2))) * (self.mu_c**0.2 * self.cp_c / (self.pr_c**0.6)) * ((self.pc *1e5 / self.cstar)**0.8) * ((self.dt / throat_rcurv)**0.1) * ((self.at / A)**0.9)
 
             if j == self.stations-1:
                 pass
@@ -969,31 +1023,33 @@ class engine:
 
     def plot_thermals(self, title):
         self.thermalsplot = subplot(3, 5, title, self)
-        self.thermalsplot.plt(1, self.x*1e3, self.hg*1e-3,'Gas Side Conv. Coeff.','Axial Distance (mm)','Gas Side Conv. Coeff. (kW/m^2/K)','r', True)
-        self.thermalsplot.plt(2, self.x*1e3, self.q*1e-3,'Heat Flux','Axial Distance (mm)','Heat Flux (kW/m^2)','r', True)
-        self.thermalsplot.plt(3, self.x*1e3, self.Tg, 'Gas Temperature', 'Axial Distance (mm)', 'Gas Temperature (K)', 'r', True)
-        self.thermalsplot.plt(4, self.x*1e3, self.pg, 'Pressure', 'Axial Distance (mm)', 'Pressure (bar)', 'b', True)
-        self.thermalsplot.plt(5, self.x*1e3, self.M, 'Mach', 'Axial Distance (mm)', 'Mach', 'b', True)
-        self.thermalsplot.plt(6, self.x*1e3, self.gamma, 'Gamma', 'Axial Distance (mm)', 'Gamma', 'b', True)
-        self.thermalsplot.plt(7, self.x*1e3, self.pr, 'Prandtl Number', 'Axial Distance (mm)', 'Prandtl Number', 'b', True)
-        self.thermalsplot.plt(8, self.x*1e3, self.Twg, 'Wall Temp', 'Axial Distance (mm)', 'Wall Temp (K)', 'r', True, label='Twg')
+        xlabel = 'Axial Distance (mm)'
+        self.thermalsplot.plt(1, self.x*1e3, self.hg*1e-3,'Gas Side Conv. Coeff.', xlabel, 'Gas Side Conv. Coeff. (kW/m^2/K)','r', True)
+        self.thermalsplot.plt(2, self.x*1e3, self.q*1e-3,'Heat Flux', xlabel, 'Heat Flux (kW/m^2)','r', True)
+        self.thermalsplot.plt(3, self.x*1e3, self.Tg, 'Gas Temperature', xlabel, 'Gas Temperature (K)', 'r', True)
+        self.thermalsplot.plt(4, self.x*1e3, self.pg, 'Pressure', xlabel, 'Pressure (bar)', 'b', True)
+        self.thermalsplot.plt(5, self.x*1e3, self.M, 'Mach', xlabel, 'Mach', 'b', True)
+        self.thermalsplot.plt(6, self.x*1e3, self.gamma, 'Gamma', xlabel, 'Gamma', 'b', True)
+        self.thermalsplot.plt(7, self.x*1e3, self.pr, 'Prandtl Number', xlabel, 'Prandtl Number', 'b', True)
+        self.thermalsplot.plt(8, self.x*1e3, self.Twg, 'Wall Temp', xlabel, 'Wall Temp (K)', 'r', True, label='Twg')
         self.thermalsplot.addline(8, self.x*1e3, self.Twc, 'm', label='Twc')
         self.thermalsplot.addline(8, self.x*1e3, self.Tc, 'b', label='Tc')
-        self.thermalsplot.plt(9, self.x*1e3, self.Tc, 'Coolant Temperature', 'Axial Distance (mm)', 'Coolant Temperature (K)', 'r', True)
-        self.thermalsplot.plt(10, self.x*1e3, self.rho_coolant, 'Coolant Density', 'Axial Distance (mm)', 'Coolant Density (kg/m^3)', 'b', True)
-        self.thermalsplot.plt(11, self.x*1e3, self.hc*1e-3,'Coolant Side Conv. Coeff.','Axial Distance (mm)','Coolant Side Conv. Coeff. (kW/m^2/K)','r', True)
-        self.thermalsplot.plt(12, self.x*1e3, self.v_coolant, 'Coolant Velocity', 'Axial Distance (mm)', 'Coolant Velocity (m/s)', 'b', True)
-        self.thermalsplot.plt(13, self.x*1e3, self.cp_coolant, 'Coolant Specific Heat', 'Axial Distance (mm)', 'Coolant Specific Heat (J/kg/K)', 'b', True)
-        self.thermalsplot.plt(14, self.x*1e3, self.k_coolant, 'Coolant Thermal Conductivity', 'Axial Distance (mm)', 'Coolant Thermal Conductivity (W/m/K)', 'b', True)
-        self.thermalsplot.plt(15, self.x*1e3, self.mu_coolant*1e3, 'Coolant Viscosity', 'Axial Distance (mm)', 'Coolant Viscosity (mPa.s)', 'b', True)
+        self.thermalsplot.plt(9, self.x*1e3, self.Tc, 'Coolant Temperature', xlabel, 'Coolant Temperature (K)', 'r', True)
+        self.thermalsplot.plt(10, self.x*1e3, self.rho_coolant, 'Coolant Density', xlabel, 'Coolant Density (kg/m^3)', 'b', True)
+        self.thermalsplot.plt(11, self.x*1e3, self.hc*1e-3,'Coolant Side Conv. Coeff.', xlabel, 'Coolant Side Conv. Coeff. (kW/m^2/K)', 'r', True)
+        self.thermalsplot.plt(12, self.x*1e3, self.v_coolant, 'Coolant Velocity', xlabel, 'Coolant Velocity (m/s)', 'b', True)
+        self.thermalsplot.plt(13, self.x*1e3, self.cp_coolant, 'Coolant Specific Heat', xlabel, 'Coolant Specific Heat (J/kg/K)', 'b', True)
+        self.thermalsplot.plt(14, self.x*1e3, self.k_coolant, 'Coolant Thermal Conductivity', xlabel, 'Coolant Thermal Conductivity (W/m/K)', 'b', True)
+        self.thermalsplot.plt(15, self.x*1e3, self.mu_coolant*1e3, 'Coolant Viscosity', xlabel, 'Coolant Viscosity (mPa.s)', 'b', True)
 
     def plot_film(self):
         self.filmplot = subplot(2,2,'Film Cooling Data', self)
-        self.filmplot.plt(1, self.x*1e3, self.T_f, 'Film Temp','Axial Distance (mm)','Film Temperature (K)','r', True)
-        self.filmplot.plt(2, self.x*1e3, self.q_f*1e-3, 'Film Heat Flux','Axial Distance (mm)','Film Heat Flux (kW/m^2)','r', True)
-        self.filmplot.plt(3, self.x*1e3, self.film_mdot_l, 'Liquid Film mdot','Axial Distance (mm)','Liquid Film mdot (kg/s)','b', True,label='Liquid Film mdot (kg/s)')
+        xlabel = 'Axial Distance (mm)'
+        self.filmplot.plt(1, self.x*1e3, self.T_f, 'Film Temp', xlabel, 'Film Temperature (K)', 'r', True)
+        self.filmplot.plt(2, self.x*1e3, self.q_f*1e-3, 'Film Heat Flux', xlabel, 'Film Heat Flux (kW/m^2)', 'r', True)
+        self.filmplot.plt(3, self.x*1e3, self.film_mdot_l, 'Liquid Film mdot', xlabel, 'Liquid Film mdot (kg/s)', 'b', True,label='Liquid Film mdot (kg/s)')
         self.filmplot.addline(3, self.x*1e3, self.film_mdot_g, 'r', label='Gas Film mdot (kg/s)')
-        self.filmplot.plt(4, self.x*1e3, self.filmstate, 'Film State','Axial Distance (mm)','Film State','b', True)#
+        self.filmplot.plt(4, self.x*1e3, self.filmstate, 'Film State', xlabel, 'Film State', 'b', True)#
 
     def system_sim_sensitivity(self, param, param_range, fuel, ox, fuel_inj_p, ox_inj_p, fuel_rho, ox_rho, oxclass, ox_can_choke=False, ox_temp=15, fuel_can_choke=False, fuel_temp=15):
         pc = np.array([])
@@ -1579,15 +1635,15 @@ class injector():
         else:
             fuel_mdot_start = self.fuel_core_CdA * np.sqrt(2*(fuel_inj_p-1.01325) * 1e5 * fuel_rho)
 
-        print(f'Total Start mdot: {(ox_mdot_start+fuel_mdot_start)*1e3:.3f} g/s')
+        print(f'Total Start mdot: {(ox_mdot_start+fuel_mdot_start)*1e3:.4f} g/s')
         if ox_gas_class != None:
-            print(f'Ox Start mdot: {ox_mdot_start*1e3:.3f} g/s ({ox_chokedstate})')
+            print(f'Ox Start mdot: {ox_mdot_start*1e3:.4f} g/s ({ox_chokedstate})')
         else:
-            print(f'Ox Start mdot: {ox_mdot_start*1e3:.3f} g/s')
+            print(f'Ox Start mdot: {ox_mdot_start*1e3:.4f} g/s')
         if fuel_gas_class != None:
-            print(f'Fuel Start mdot: {fuel_mdot_start*1e3:.3f} g/s ({fuel_chokedstate})')
+            print(f'Fuel Start mdot: {fuel_mdot_start*1e3:.4f} g/s ({fuel_chokedstate})')
         else:
-            print(f'Fuel Start mdot: {fuel_mdot_start*1e3:.3f} g/s')
+            print(f'Fuel Start mdot: {fuel_mdot_start*1e3:.4f} g/s')
         print(f'Start OF: {ox_mdot_start/fuel_mdot_start:.3f}')
 
 class subplot:
@@ -1600,9 +1656,9 @@ class subplot:
         self.ax2 = {}
         self.x = engine.x
         self.r = engine.r
-        self.rc = engine.rc
+        self.max_r = np.max([engine.rc, engine.re]) 
 
-    def plt(self, loc, x, y, title, xlabel, ylabel, colour, draw_engine_contour=False, **label):
+    def plt(self, loc, x, y, title, xlabel, ylabel, colour, draw_engine_contour=True, **label):
         if 'label' in label:
             label = label['label']
         else:
@@ -1613,13 +1669,14 @@ class subplot:
         self.ax[loc].set_xlabel(xlabel)
         self.ax[loc].set_ylabel(ylabel)
         self.ax[loc].grid(alpha=1)
-        self.ax[loc].set_xlim(0, self.x[-1]*1e3)
+        self.ax[loc].set_xlim(self.x[0]*1e3, self.x[-1]*1e3)
+        self.ax[loc].set_aspect('equal', adjustable='datalim')
         self.ax[loc].xaxis.grid(AutoMinorLocator())
         self.ax[loc].yaxis.grid(AutoMinorLocator())
         if draw_engine_contour == True:
             self.ax2[loc] = self.ax[loc].twinx()
             self.ax2[loc].plot(self.x*1e3, self.r*1e3, color='gray')
-            self.ax2[loc].set_ylim(0, self.rc*5e3)
+            self.ax2[loc].set_ylim(0, self.max_r*5e3)
 
     def addline(self, loc, x, y, colour, label = None):
         self.ax[loc].plot(x, y, colour, label=label)
@@ -1648,15 +1705,17 @@ if __name__ == '__main__':
 
     plt.ion()
 
-    hopper = engine('configs/hopperengine.cfg')
+    # hopper = engine('configs/hopperengine.cfg')
     igniter = engine('configs/igniter.cfg')
+    # csj = engine('configs/500N_csj.cfg')
+    # l9 = engine('configs/l9.cfg')
 
     # evan_daniel_inj = injector()
     # evan_daniel_inj.size_fuel_holes(Cd = fuelCd, d = in2mm(0.006))
     # evan_daniel_inj.size_ox_holes(Cd = oxCd, d = in2mm(1/32))
     # evan_daniel_inj.size_ox_anulus(Cd = oxCd, ID = in2mm(1/16), OD = in2mm(0.08))
 
-    ambient_T = 15
+    ambient_T = 24
 
     ipa_impinging = injector()
     ipa_impinging.size_fuel_holes(Cd = 0.5, d = 0.2)
@@ -1671,17 +1730,17 @@ if __name__ == '__main__':
     coax_inj_propane.size_ox_anulus(Cd = 0.65, ID = 1, OD = 1.5)
 
     coax_inj_ipa = injector() # Gas N2O / IPA - low pressures
-    coax_inj_ipa.size_fuel_holes(Cd = 0.5, d = 0.2)
+    coax_inj_ipa.size_fuel_holes(Cd = 0.59266, d = 0.2)
     coax_inj_ipa.size_ox_anulus(Cd = 0.65, ID = 0.5, OD = 1.2)
 
     coax_inj_ipa_high_p = injector() # Gas N2O / IPA
-    coax_inj_ipa_high_p.size_fuel_holes(Cd = 0.45, d = 0.2)
-    coax_inj_ipa_high_p.size_ox_anulus(Cd = 0.65, ID = 0.5, OD = 0.95) # This seems to sim well, probably final
-    # Sweeping values gives ~ 3-6 OF which should be good for ignition
+    coax_inj_ipa_high_p.size_fuel_holes(Cd = 0.59266, d = 0.2)
+    coax_inj_ipa_high_p.size_ox_anulus(Cd = 0.65, ID = 0.5, OD = 0.9) # Worked with liquid @ 55 bar Fuel, 55 bar liquid N2O at saturation
+    # Spark plug had to stay on for ignition + fuel rich ignition
 
     coax_inj_ipa_ln2o = injector() # Liquid N2O / IPA
-    coax_inj_ipa_ln2o.size_fuel_holes(Cd = 0.5, d = 0.2)
-    coax_inj_ipa_ln2o.size_ox_anulus(Cd = 0.4, ID = 0.5, OD = 0.7)
+    coax_inj_ipa_ln2o.size_fuel_holes(Cd = 0.59266, d = 0.2)
+    coax_inj_ipa_ln2o.size_ox_anulus(Cd = 0.4, ID = 0.5, OD = 0.8)
 
     igniter.dt = 3e-3
     igniter.de = 4.5e-3
@@ -1698,91 +1757,90 @@ if __name__ == '__main__':
     nitrous_density = nitrous.density
 
     print(f'Nitrous Saturation Pressure: {nitrous_vp:.3f} bar')
-    print(f'Propane Saturation Pressure: {propane_vp:.3f} bar')
+    # print(f'Propane Saturation Pressure: {propane_vp:.3f} bar')
 
-    ipa_p = 35
+    # Working: 
 
-    OFsweep(
-        fuel = 'Propane',
-        ox = 'GOX',
-        OFstart = 0.1,
-        OFend = 0.5,
-        pc = 5,
-        pe = 1,
-    )
+    # ipa_p = 20
+    # print(f'IPA Pressure: {ipa_p:.3f} bar')
+    # igniter.system_combustion_sim(
+    #     fuel = 'Isopropanol',
+    #     ox = 'N2O',
+    #     fuel_upstream_p = ipa_p,
+    #     fuel_rho = 786,
+    #     fuel_total_CdA = coax_inj_ipa_high_p.fuel_total_CdA,
+    #     ox_upstream_p = nitrous_vp,
+    #     ox_gas_class = nitrous,
+    #     ox_temp = ambient_T,
+    #     ox_CdA= coax_inj_ipa_high_p.ox_CdA,
+    #     cstar_eff= 1,
+    # )
+    # igniter.print_data()
+    # coax_inj_ipa_high_p.calc_start_mdot(
+    #     fuel_inj_p = ipa_p,
+    #     fuel_rho = 786,
+    #     ox_inj_p = nitrous_vp,
+    #     ox_gas_class = nitrous,
+    #     ox_temp = ambient_T,
+    # )
+
+    # ipa_p = 40
+    # print(f'IPA Pressure: {ipa_p:.3f} bar')
+    # igniter.system_combustion_sim(
+    #     fuel = 'Isopropanol',
+    #     ox = 'N2O',
+    #     fuel_upstream_p = ipa_p,
+    #     fuel_rho = 786,
+    #     fuel_total_CdA = coax_inj_ipa.fuel_total_CdA,
+    #     ox_upstream_p = nitrous_vp,
+    #     ox_gas_class = nitrous,
+    #     ox_temp = ambient_T,
+    #     ox_CdA= coax_inj_ipa.ox_CdA,
+    #     cstar_eff= 1,
+    # )
+    # igniter.print_data()
+    # coax_inj_ipa.calc_start_mdot(
+    #     fuel_inj_p = ipa_p,
+    #     fuel_rho = 786,
+    #     ox_inj_p = nitrous_vp,
+    #     ox_gas_class = nitrous,
+    #     ox_temp = ambient_T,
+    # )
+    tank_p = 40
+    nitrous_p = 40
+    vp = 30
+
+    nitrous.update(Input.pressure(vp*1e5), Input.quality(0))
+    T = nitrous.temperature
+    nitrous.update(Input.temperature(T), Input.pressure(tank_p*1e5))
+    print(f"Nitrous Density: {nitrous.density:.3f} kg/m³")
 
     igniter.system_combustion_sim(
         fuel = 'Isopropanol',
         ox = 'N2O',
-        fuel_upstream_p = ipa_p,
+        fuel_upstream_p = tank_p,
+        ox_upstream_p = nitrous_p,
         fuel_rho = 786,
-        fuel_total_CdA = coax_inj_ipa_high_p.fuel_total_CdA,
-        ox_upstream_p = nitrous_vp,
-        ox_gas_class = nitrous,
-        ox_temp = ambient_T,
-        ox_CdA= coax_inj_ipa_high_p.ox_CdA,
-        cstar_eff= 1,
-    )
-    igniter.print_data()
-    coax_inj_ipa_high_p.calc_start_mdot(
-        fuel_inj_p = ipa_p,
-        fuel_rho = 786,
-        ox_inj_p = nitrous_vp,
-        ox_gas_class = nitrous,
-        ox_temp = ambient_T,
-    )
-
-    igniter.system_combustion_sim(
-        fuel = 'Isopropanol',
-        ox = 'N2O',
-        fuel_upstream_p = ipa_p,
-        ox_upstream_p = ipa_p,
-        fuel_rho = 786,
-        ox_rho = nitrous_density,
+        ox_rho = nitrous.density,
         fuel_total_CdA = coax_inj_ipa_ln2o.fuel_total_CdA,
-        ox_CdA= coax_inj_ipa_ln2o.ox_CdA,
+        ox_CdA = coax_inj_ipa_ln2o.ox_CdA,
+        cstar_eff = 0.7,
     )
     igniter.print_data()
     coax_inj_ipa_ln2o.calc_start_mdot(
-        fuel_inj_p = ipa_p,
+        fuel_inj_p = tank_p,
         fuel_rho = 786,
-        ox_inj_p = ipa_p,
-        ox_rho = nitrous_density,
+        ox_inj_p = tank_p,
+        ox_rho = nitrous.density,
     )
 
-
-    # l9 = engine('configs/test.cfg')
-    # l9.combustion_sim(
-    #     fuel = 'Ethanol',
-    #     ox = 'LOX',
-    #     OF = 1.5,
-    #     pc = 20,
-    # )
-    # l9.print_data()
-
-    # l9.thermal_sim(
-    #     wall_k = 130,
-    #     n_channels = 50,
-    #     h_rib = 1.5e-3,
-    #     tw = 0.7e-3,
-    #     channel_arc_angle = 3.8,
-    #     coolant = FluidsList.Ethanol,
-    #     coolant_mdot = 0.5 * l9.fuel_mdot,
-    #     coolant_T_in = 300,
-    #     coolant_p_in = 40,
-    #     rev_flow = False,
-    # )
-    # l9.plot_thermals(f"Engine Thermals, OF = {l9.OF:.2f}, pc = {l9.pc:.2f} bar")
-
-    # l9.save()
-
-    # OFsweep(
-    #     fuel = 'Propane',
-    #     ox = 'N2O',
-    #     OFstart = 0.5,
-    #     OFend = 12,
-    #     pc = 25,
-    #     showvacisp = True,
-    # )
+    OFsweep(
+        fuel = 'Ethanol',
+        ox = 'LOX',
+        OFstart = 0,
+        OFend = 5,
+        pc = 20,
+        cr = 4,
+    )
 
     plt.show(block=True)

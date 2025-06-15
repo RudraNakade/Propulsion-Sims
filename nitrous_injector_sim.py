@@ -1,3 +1,4 @@
+from matplotlib.pylab import f
 import numpy as np
 from pyfluids import Fluid, FluidsList, Input
 import matplotlib.pyplot as plt
@@ -63,19 +64,19 @@ def calculate_flow_rates(T, P_up, vp, P_down_array, A_eff, Cd, Cd_SPI):
     return mdot_spi, mdot_spi_adj, mdot_hem, mdot_nhne, vp, rho_down, quality_down, T_down
 
 # Setup parameters
-vp = 32e5
-n_holes = 24
-d_hole = 0.8e-3  # 1.5 mm holes
+vp = 40e5
+n_holes = 48
+d_hole = 1.5e-3  # 1.5 mm holes
 A_inj = n_holes * np.pi * (d_hole / 2) ** 2
 # A_inj = 1.75e-6 / 0.2
 Cd = 0.65
-Cd_SPI = 0.45
+Cd_SPI = 0.4
 
 # Get vapor pressure for the temperature
-nitrous = Fluid(FluidsList.NitrousOxide)
-nitrous.update(Input.pressure(vp), Input.quality(0))
-T = nitrous.temperature
-upstream_density = nitrous.density
+nitrous_up = Fluid(FluidsList.NitrousOxide)
+nitrous_up.update(Input.pressure(vp), Input.quality(0))
+T = nitrous_up.temperature
+upstream_density = nitrous_up.density
 P_up = vp + 10
 
 P_down_array = np.linspace(P_up, 1e5, 5000)  # From 1 bar to just below vapor pressure
@@ -128,42 +129,112 @@ fig, axs = plt.subplots(2, 2, figsize=(15, 12))
 # axs[1, 1].grid(True)
 # axs[1, 1].legend()
 
-P_up = 38.6e5
-vp = 38.5e5
-pc = 30e5
 
-Cd = 0.7
-A_inj = 48 * np.pi * (1.7e-3 / 2) ** 2  # 1.5 mm holes
+# R2S Estimated pressures - 6 kN 3.5 OF - mdot = 2.14827 kg/s
+# P_up = 40.8e5
+# vp = P_up - 100
+# pc = 30e5
 
-nitrous.update(Input.pressure(vp), Input.quality(0))
-T = nitrous.temperature
-nitrous.update(Input.pressure(P_up), Input.temperature(T))
+
+# R2S Estimated pressures - 4.7 kN 3.5 OF - mdot = 1.71922 kg/s
+
+# P_up = 30.18e5
+# vp = P_up - 100
+# pc = 24e5
+
+# R2S Estimated pressures - 4.7 kN 3 OF - mdot = 1.70405 kg/s
+
+# P_up = 30.03e5
+# vp = P_up - 100
+# pc = 24e5
+
+# R2S Estimated pressures - 4.7 kN 2.5 OF - mdot = 1.69344 kg/s
+
+# P_up = 29.93e5
+# vp = P_up - 100
+# pc = 24e5
+
+# Rocket estimated pressures - 6 kN 3.5 OF - mdot = 2.14827 kg/s
+
+# P_up = 39.03e5
+# vp = 36e5
+# pc = 30e5
+
+
+# Rocket estimated pressures - 4.7 kN
+
+P_up = 36.01e5
+vp = 36e5
+pc = 24e5
+
+Cd = 0.65
+
+pintle_d = 17.27e-3
+pintle_id = 12e-3
+hole_d = 1.5e-3
+n_holes_row = 12
+n_rows = 5
+
+inlet_area = np.pi * (pintle_id / 2) ** 2
+pintle_circumference = np.pi * pintle_d
+blockage_ratio = (n_holes_row * hole_d) / pintle_circumference
+A_inj =  n_rows * n_holes_row * np.pi * (hole_d / 2) ** 2
+# A_inj = 118.609 * 0.75 * 1e-6
+A_nhne = A_inj/ 1.1
+
+p_inj_max = 50e5
+
+pintle_structural_area = (np.pi * (pintle_d / 2) ** 2 - np.pi * (pintle_id / 2) ** 2)  - (0.5 * (pintle_d - pintle_id) * hole_d * n_holes_row)
+pressure_force_cold = 0.25 * np.pi * (pintle_id ** 2) * p_inj_max
+pressure_force_hot = 0.25 * np.pi * (pintle_d ** 2) * (p_inj_max - pc)
+
+stress_cold = pressure_force_cold / pintle_structural_area
+stress_hot = pressure_force_hot / pintle_structural_area
+
+
+
+# print(0.5 * (pintle_d - pintle_id) * hole_d * 1e6)
+
+nitrous_up.update(Input.pressure(vp), Input.quality(0))
+T = nitrous_up.temperature
+nitrous_up.update(Input.pressure(P_up), Input.temperature(T))
 nitrous_down = Fluid(FluidsList.NitrousOxide)
-nitrous_down.update(Input.pressure(pc), Input.entropy(nitrous.entropy))
-upstream_density = nitrous.density
-mdot_spi = spi_model(P_up, pc, upstream_density, A_inj, Cd)
-mdot_hem = hem_model(nitrous, nitrous_down, A_inj, Cd)
+nitrous_down.update(Input.pressure(pc), Input.entropy(nitrous_up.entropy))
+upstream_density = nitrous_up.density
+mdot_spi = spi_model(P_up, pc, upstream_density, A_nhne, Cd)
+mdot_hem = hem_model(nitrous_up, nitrous_down, A_nhne, Cd)
 k = np.sqrt((P_up - pc) / (vp - pc))
 mdot_nhne = nhne_model(mdot_spi, mdot_hem, k)
 
-print(f"NHNE Mdot: {mdot_nhne:.2f} kg/s, @ vp = {vp/1e5:.2f} bar, P_up = {P_up/1e5:.2f} bar, P_down = {pc/1e5:.2f} bar")
+Cd_effective = mdot_nhne / (A_inj * np.sqrt(2 * upstream_density * (P_up - pc)))
 
-P_up = 38.6e5
-vp = 32e5
-pc = 30e5
-nitrous.update(Input.pressure(vp), Input.quality(0))
-T = nitrous.temperature
-nitrous.update(Input.pressure(P_up), Input.temperature(T))
-nitrous_down = Fluid(FluidsList.NitrousOxide)
-nitrous_down.update(Input.pressure(pc), Input.entropy(nitrous.entropy))
-upstream_density = nitrous.density
-mdot_spi = spi_model(P_up, pc, upstream_density, A_inj, Cd)
-mdot_hem = hem_model(nitrous, nitrous_down, A_inj, Cd)
-k = np.sqrt((P_up - pc) / (vp - pc))
-mdot_nhne = nhne_model(mdot_spi, mdot_hem, k)
+print(f"Pintle Structural Area: {pintle_structural_area*1e6:.4f} mm^2")
+print(f"Force Cold: {pressure_force_cold:.1f} N, Force Hot: {pressure_force_hot:.1f} N")
+print(f"Stress Cold: {stress_cold/1e6:.2f} MPa, Stress Hot: {stress_hot/1e6:.2f} MPa\n")
+print(f"Inlet Area: {inlet_area*1e6:.4f} mm^2, Injector Area: {A_inj*1e6:.4f} mm^2")
 
-print(f"NHNE Mdot: {mdot_nhne:.2f} kg/s, @ vp = {vp/1e5:.2f} bar, P_up = {P_up/1e5:.2f} bar, P_down = {pc/1e5:.2f} bar")
+print(f"Blockage Ratio: {blockage_ratio:.4f}")
+print(f"SPI Mdot: {mdot_spi:.3f} kg/s, HEM Mdot: {mdot_hem:.3f} kg/s, k = {k:.2f}")
+print(f"NHNE Mdot: {mdot_nhne:.4f} kg/s\n")
 
-# Adjust layout and spacing
-plt.tight_layout()
-plt.show()
+print(f"Upstream Properties: T = {T:.2f}°C, P = {P_up/1e5:.2f} bar, VP = {vp/1e5:.2f} bar, Density = {upstream_density:.2f} kg/m³")
+print(f"Effective Cd: {Cd_effective:.4f}, Cd ratio: {Cd_effective / Cd:.4f}")
+# P_up = 38.6e5
+# vp = 32e5
+# pc = 30e5
+# nitrous.update(Input.pressure(vp), Input.quality(0))
+# T = nitrous.temperature
+# nitrous.update(Input.pressure(P_up), Input.temperature(T))
+# nitrous_down = Fluid(FluidsList.NitrousOxide)
+# nitrous_down.update(Input.pressure(pc), Input.entropy(nitrous.entropy))
+# upstream_density = nitrous.density
+# mdot_spi = spi_model(P_up, pc, upstream_density, A_inj, Cd)
+# mdot_hem = hem_model(nitrous, nitrous_down, A_inj, Cd)
+# k = np.sqrt((P_up - pc) / (vp - pc))
+# mdot_nhne = nhne_model(mdot_spi, mdot_hem, k)
+
+# print(f"NHNE Mdot: {mdot_nhne:.2f} kg/s, @ vp = {vp/1e5:.2f} bar, P_up = {P_up/1e5:.2f} bar, P_down = {pc/1e5:.2f} bar")
+
+# # Adjust layout and spacing
+# plt.tight_layout()
+# plt.show()

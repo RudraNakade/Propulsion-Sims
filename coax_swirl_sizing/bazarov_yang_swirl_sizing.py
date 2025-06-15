@@ -17,8 +17,8 @@ mdot_total = 0.61379 # kg/S
 alpha = 60 # spray half angle (deg)
 # Recommended: 45 - 60 deg
 
-n_elements = 12 # number of injector elements
-n_inlet = 4 # number of tangential inlets per element
+n_elements = 16 # number of injector elements
+n_inlet = 3 # number of tangential inlets per element
 
 nozzle_opening_coeff = 1.5
 # nozzle_opening_coeff = 0.862
@@ -79,7 +79,7 @@ while (alpha_diff > 1e-4) or (dp_diff > 1e-4):
     # l_in = 1e-3 # assuming 1mm for now (depends on wall thickess of the element)
     l_in = 3 * r_in # nvm this literally changes nothing so set to whatever
     l_n = 2 * R_n
-    l_s = 3 * R_n
+    l_s = 6 * R_n
     R_s = R_in + r_in
 
     ## Step 5 - calculate Reynolds number and friction coefficient in inlet passage 
@@ -202,3 +202,5 @@ n2o_annulus_r = np.sqrt((n2o_annulus_area / np.pi) + ((R_n + wall_thickness)**2)
 print(f"N2O annulus inner radius: {(R_n + wall_thickness) * 1e3:.3f} mm")
 print(f"N2O annulus ID: {(R_n + wall_thickness) * 2e3:.3f} mm")
 print(f"N2O annulus OD: {n2o_annulus_r * 2e3:.3f} mm")
+
+print(f"N2O annulus gap: {(n2o_annulus_r - (R_n + wall_thickness)) * 1e3:.3f} mm")

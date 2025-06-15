@@ -1,4 +1,5 @@
 from math import nan
+from string import printable
 from matplotlib.pylab import f
 from pyfluids import Fluid, FluidsList, Input
 import numpy as np
@@ -126,7 +127,7 @@ temperatures = np.linspace(270, 400, 100) - 273.15
 pc = 20e5  # Pressure in Pa
 pe = 1.01325e5  # Pressure in Pa
 
-ox = "LOX"
+ox = "N2O"
 
 # Setup geometrical parameters
 D_h = 2e-3  # hydraulic diameter in m
@@ -135,14 +136,14 @@ D_h = 2e-3  # hydraulic diameter in m
 fluids = [
     PyFluidsProperty("Methanol", FluidsList.Methanol, temperatures, "Methanol", ox, pc=pc, pe=pe),
     PyFluidsProperty("Ethanol", FluidsList.Ethanol, temperatures, "Ethanol", ox, pc=pc, pe=pe),
+    IsopropanolProperty(temperatures, "Isopropanol", ox, pc=pc, pe=pe),
     PyFluidsProperty("Propane", FluidsList.nPropane, temperatures, "Propane", ox, pc=pc, pe=pe),
     # PyFluidsProperty("Methane", FluidsList.Methane, temperatures, "CH4", ox, pc=pc, pe=pe),
-    IsopropanolProperty(temperatures, "Isopropanol", ox, pc=pc, pe=pe),
-#     PyFluidsProperty("LOX-Propane", FluidsList.Oxygen, temperatures, "Propane", "LOX", pc=pc, pe=pe, isox=True),
-#     PyFluidsProperty("LOX-Ethanol", FluidsList.Oxygen, temperatures, "Ethanol", "LOX", pc=pc, pe=pe, isox=True),
-#     PyFluidsProperty("LOX-Methanol", FluidsList.Oxygen, temperatures, "Methanol", "LOX", pc=pc, pe=pe, isox=True),
-#     PyFluidsProperty("LOX-IPA", FluidsList.Oxygen, temperatures, "Isopropanol", "LOX", pc=pc, pe=pe, isox=True),
-#     PyFluidsProperty("LOX-Methane", FluidsList.Oxygen, temperatures, "CH4", "LOX", pc=pc, pe=pe, isox=True),
+    # PyFluidsProperty("LOX cooled - Propane", FluidsList.Oxygen, temperatures, "Propane", "LOX", pc=pc, pe=pe, isox=True),
+    # PyFluidsProperty("LOX cooled - Ethanol", FluidsList.Oxygen, temperatures, "Ethanol", "LOX", pc=pc, pe=pe, isox=True),
+    # PyFluidsProperty("LOX cooled - Methanol", FluidsList.Oxygen, temperatures, "Methanol", "LOX", pc=pc, pe=pe, isox=True),
+    # PyFluidsProperty("LOX cooled - IPA", FluidsList.Oxygen, temperatures, "Isopropanol", "LOX", pc=pc, pe=pe, isox=True),
+#     PyFluidsProperty("LOX cooled - Methane", FluidsList.Oxygen, temperatures, "CH4", "LOX", pc=pc, pe=pe, isox=True),
 ]
 
 # Calculate heat transfer coefficients

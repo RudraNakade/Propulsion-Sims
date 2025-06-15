@@ -4,7 +4,7 @@ import numpy as np
 
 nitrous = Fluid(FluidsList.NitrousOxide)
 
-T = np.linspace(-10, 20)  # nitrous.critical_temperature, 1000)
+T = np.linspace(-10, nitrous.critical_temperature, 1000)
 P = np.zeros(len(T))
 D_g = np.zeros(len(T))
 D_l = np.zeros(len(T))
@@ -39,7 +39,7 @@ ax2.minorticks_on()
 # fig.legend(loc="upper right", bbox_to_anchor=(1,1), bbox_transform=ax1.transAxes)
 fig.tight_layout()
 
-t_amb = 11
+t_amb = 10
 
 nitrous.update(Input.temperature(t_amb), Input.quality(0))
 
