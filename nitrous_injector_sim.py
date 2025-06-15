@@ -1,4 +1,3 @@
-from matplotlib.pylab import f
 import numpy as np
 from pyfluids import Fluid, FluidsList, Input
 import matplotlib.pyplot as plt
@@ -58,7 +57,7 @@ def calculate_flow_rates(T, P_up, vp, P_down_array, A_eff, Cd, Cd_SPI):
             mdot_hem[i] = np.max(mdot_hem)
         
         # NHNE Model calculations
-        k = np.sqrt((P_up - P_down) / (vp - P_down)) if P_down < vp else 1.0
+        k = np.sqrt((P_up - P_down) / (vp - P_down))
         mdot_nhne[i] = nhne_model(mdot_spi[i], mdot_hem[i], k)
     
     return mdot_spi, mdot_spi_adj, mdot_hem, mdot_nhne, vp, rho_down, quality_down, T_down
@@ -200,6 +199,8 @@ T = nitrous_up.temperature
 nitrous_up.update(Input.pressure(P_up), Input.temperature(T))
 nitrous_down = Fluid(FluidsList.NitrousOxide)
 nitrous_down.update(Input.pressure(pc), Input.entropy(nitrous_up.entropy))
+print(f"Density at Upstream: {nitrous_up.density:.2f} kg/m³, Temperature: {T:.2f} °C")
+print(f"Density at Downstream: {nitrous_down.density:.2f} kg/m³, Temperature: {nitrous_down.temperature:.2f} °C")
 upstream_density = nitrous_up.density
 mdot_spi = spi_model(P_up, pc, upstream_density, A_nhne, Cd)
 mdot_hem = hem_model(nitrous_up, nitrous_down, A_nhne, Cd)
