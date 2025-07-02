@@ -49,12 +49,6 @@ def calculate_flow_rates(T, P_up, vp, P_down_array, A_eff, Cd, Cd_SPI):
         mdot_spi_adj[i] = spi_model(P_up, P_down, rho_up, A_eff, Cd_SPI)
         
         mdot_hem[i] = hem_model(nitrous_up, nitrous_down, A_eff, Cd)
-
-        if np.isnan(mdot_hem[i]):
-            mdot_hem[i] = 0.0
-
-        if mdot_hem[i] < np.max(mdot_hem):
-            mdot_hem[i] = np.max(mdot_hem)
         
         # NHNE Model calculations
         k = np.sqrt((P_up - P_down) / (vp - P_down))

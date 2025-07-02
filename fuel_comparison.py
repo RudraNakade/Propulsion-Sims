@@ -16,8 +16,8 @@ add_new_fuel('nitromethanol', card_str )
 fuels = []
 
 ox = 'LOX'
-pc = 20
-pe = 1.01325
+pc = 44
+pe = 1.5
 nozzle_eff = 1
 
 OF_lims = [0.05, 4]

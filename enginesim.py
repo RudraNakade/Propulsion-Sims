@@ -1,10 +1,6 @@
-from ast import Return
-from math import nan
-from string import printable
-from matplotlib.pylab import f
 from rocketcea.cea_obj_w_units import CEA_Obj
 from rocketcea.cea_obj import add_new_fuel
-from pyfluids import Fluid, FluidsList, Mixture, Input
+from pyfluids import Fluid, FluidsList, Input
 from scipy.optimize import root_scalar
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
