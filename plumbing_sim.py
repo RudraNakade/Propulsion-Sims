@@ -1,4 +1,3 @@
-from string import printable
 from typing import List, Optional
 from scipy.optimize import root_scalar
 from pyfluids import Fluid, FluidsList, Input
@@ -377,7 +376,7 @@ if __name__ == "__main__":
     fuel_injector = orifice(CdA = 21e-6, name = "Fuel Injector")
     # fuel_injector = orifice(CdA = 17.4e-6, name = "Fuel Injector")
     fuel_feed.add_component(fuel_pipes, regen_channels, fuel_injector)
-    
+
     fuel_feed.set_fluid(ipa)
 
     # Add ox components

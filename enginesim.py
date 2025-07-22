@@ -23,13 +23,13 @@ class bcolors:
 
 g = sp.constants.g
 
-with open('film_stability.csv') as data: # [Re, eta]
-    film_stab_coeff = []
-    film_stab_re = []
-    filtered_data = csv.reader(data)
-    for line in filtered_data:
-        film_stab_re.append(float(line[0]))
-        film_stab_coeff.append(float(line[1]))
+# with open('film_stability.csv') as data: # [Re, eta]
+#     film_stab_coeff = []
+#     film_stab_re = []
+#     filtered_data = csv.reader(data)
+#     for line in filtered_data:
+#         film_stab_re.append(float(line[0]))
+#         film_stab_coeff.append(float(line[1]))
 
 in2mm = lambda x: x * 25.4
 mm2in = lambda x: x / 25.4
@@ -571,6 +571,32 @@ class engine:
 
         self.OF = OF
         self.pc = pc
+
+    def mdot_combustion_sim(self, fuel, ox, fuel_mdot, ox_mdot, pamb = 1.01325, cstar_eff = 1):
+        total_mdot = fuel_mdot + ox_mdot
+        self.OF = ox_mdot / fuel_mdot
+        self.fuel = fuel
+        self.ox = ox
+
+        self.gen_cea_obj()
+
+        # cstar = pc * at / mdot - pc unknown
+
+        cstar = 1500 # initial guess
+
+        def mdot_func(pc, cstar, OF, mdot):
+            self.combustion_sim(fuel, ox, OF, pc, pamb, cstar_eff)
+            return (self.mdot - total_mdot)
+        
+        with warnings.catch_warnings(record=True):
+            warnings.simplefilter("always", category=RuntimeWarning)
+            try:
+                pc = sp.optimize.root_scalar(mdot_func, bracket=[1, 500], args=(cstar, self.OF, total_mdot), method='brentq').root
+            except ValueError:
+                print(f"{bcolors.FAIL}Error: Could not find a solution.{bcolors.ENDC}")
+                return
+        
+        self.combustion_sim(fuel, ox, self.OF, pc, pamb, cstar_eff)
 
     def generate_contour(self):
         self.n_points = 20
@@ -1731,15 +1757,24 @@ if __name__ == '__main__':
     # )
     # l9.print_data()
 
-    OFsweep(
-        fuel = 'Propane',
-        ox = 'LOX',
-        OFstart = 0.1,
-        OFend = 6,
-        pc = 30,
-        pe = 1.01325,
-        showvacisp = True,
+    # OFsweep(
+    #     fuel = 'Propane',
+    #     ox = 'LOX',
+    #     OFstart = 0.1,
+    #     OFend = 6,
+    #     pc = 30,
+    #     pe = 1.01325,
+    #     showvacisp = True,
+    # )
+
+    l9.mdot_combustion_sim(
+        fuel = 'Isopropanol',
+        ox = 'N2O',
+        fuel_mdot = 0.76,
+        ox_mdot = 2.33,
+        cstar_eff = 0.96,
     )
+    l9.print_data()
 
     # eff = 0.945
 
