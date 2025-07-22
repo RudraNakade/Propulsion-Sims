@@ -1703,56 +1703,112 @@ if __name__ == '__main__':
 
     # hopper = engine('configs/hopperengine.cfg')
     igniter = engine('configs/igniter.cfg')
+
     # csj = engine('configs/500N_csj.cfg')
-    # l9 = engine('configs/l9.cfg')
+    l9 = engine('configs/l9.cfg')
+
+    # l9.combustion_sim(
+    #     fuel = 'Isopropanol',
+    #     ox = 'N2O',
+    #     OF = 3.07,
+    #     pc = 31.8,
+    #     cstar_eff = 1,
+    # )
+    # l9.print_data()
+
+    # l9.dt = 35.1e-3
+    # l9.update()
+    # l9.eps = 5.6
+    # l9.cr = 6
+
+
+    # l9.combustion_sim(
+    #     fuel = 'Isopropanol',
+    #     ox = 'LOX',
+    #     OF = 1.6848,
+    #     pc = 44.2,
+    #     cstar_eff = 1,
+    # )
+    # l9.print_data()
+
+    OFsweep(
+        fuel = 'Propane',
+        ox = 'LOX',
+        OFstart = 0.1,
+        OFend = 6,
+        pc = 30,
+        pe = 1.01325,
+        showvacisp = True,
+    )
+
+    # eff = 0.945
+
+    # ox_mdot = l9.ox_mdot / eff
+    # fuel_mdot = l9.fuel_mdot / eff
+    # total_mdot = ox_mdot + fuel_mdot
+
+    # core_fuel_mdot = fuel_mdot / 1.2
+
+    # total_core_mdot = core_fuel_mdot + ox_mdot
+
+    # print(f"Ox mdot = {ox_mdot:.3f} kg/s")
+
+    # print(f"Total Fuel mdot = {fuel_mdot:.3f} kg/s")
+    # print(f"Total mdot = {total_mdot:.3f} kg/s")
+
+    # print(f"Core Fuel mdot = {core_fuel_mdot:.3f} kg/s")
+    # print(f"Total Core mdot = {total_core_mdot:.3f} kg/s")
+
+    # print(f"Core OF = {ox_mdot/core_fuel_mdot:.3f}")
+
 
     # evan_daniel_inj = injector()
     # evan_daniel_inj.size_fuel_holes(Cd = fuelCd, d = in2mm(0.006))
     # evan_daniel_inj.size_ox_holes(Cd = oxCd, d = in2mm(1/32))
     # evan_daniel_inj.size_ox_anulus(Cd = oxCd, ID = in2mm(1/16), OD = in2mm(0.08))
 
-    ambient_T = 24
+    # ambient_T = 24
 
-    ipa_impinging = injector()
-    ipa_impinging.size_fuel_holes(Cd = 0.5, d = 0.2)
-    ipa_impinging.size_ox_holes(Cd = 0.65, d = 1)
+    # ipa_impinging = injector()
+    # ipa_impinging.size_fuel_holes(Cd = 0.5, d = 0.2)
+    # ipa_impinging.size_ox_holes(Cd = 0.65, d = 1)
 
-    propane_impinging = injector()
-    propane_impinging.size_fuel_holes(Cd = 0.65, d = 0.5)
-    propane_impinging.size_ox_holes(Cd = 0.65, d = 0.9)
+    # propane_impinging = injector()
+    # propane_impinging.size_fuel_holes(Cd = 0.65, d = 0.5)
+    # propane_impinging.size_ox_holes(Cd = 0.65, d = 0.9)
 
-    coax_inj_propane = injector() # Gas N2O / Propane - low pressures
-    coax_inj_propane.size_fuel_holes(Cd = 0.5, d = 0.7)
-    coax_inj_propane.size_ox_anulus(Cd = 0.65, ID = 1, OD = 1.5)
+    # coax_inj_propane = injector() # Gas N2O / Propane - low pressures
+    # coax_inj_propane.size_fuel_holes(Cd = 0.5, d = 0.7)
+    # coax_inj_propane.size_ox_anulus(Cd = 0.65, ID = 1, OD = 1.5)
 
-    coax_inj_ipa = injector() # Gas N2O / IPA - low pressures
-    coax_inj_ipa.size_fuel_holes(Cd = 0.59266, d = 0.2)
-    coax_inj_ipa.size_ox_anulus(Cd = 0.65, ID = 0.5, OD = 1.2)
+    # coax_inj_ipa = injector() # Gas N2O / IPA - low pressures
+    # coax_inj_ipa.size_fuel_holes(Cd = 0.59266, d = 0.2)
+    # coax_inj_ipa.size_ox_anulus(Cd = 0.65, ID = 0.5, OD = 1.2)
 
-    coax_inj_ipa_high_p = injector() # Gas N2O / IPA
-    coax_inj_ipa_high_p.size_fuel_holes(Cd = 0.59266, d = 0.2)
-    coax_inj_ipa_high_p.size_ox_anulus(Cd = 0.65, ID = 0.5, OD = 0.9) # Worked with liquid @ 55 bar Fuel, 55 bar liquid N2O at saturation
-    # Spark plug had to stay on for ignition + fuel rich ignition
+    # coax_inj_ipa_high_p = injector() # Gas N2O / IPA
+    # coax_inj_ipa_high_p.size_fuel_holes(Cd = 0.59266, d = 0.2)
+    # coax_inj_ipa_high_p.size_ox_anulus(Cd = 0.65, ID = 0.5, OD = 0.9) # Worked with liquid @ 55 bar Fuel, 55 bar liquid N2O at saturation
+    # # Spark plug had to stay on for ignition + fuel rich ignition
 
-    coax_inj_ipa_ln2o = injector() # Liquid N2O / IPA
-    coax_inj_ipa_ln2o.size_fuel_holes(Cd = 0.59266, d = 0.2)
-    coax_inj_ipa_ln2o.size_ox_anulus(Cd = 0.4, ID = 0.5, OD = 0.8)
+    # coax_inj_ipa_ln2o = injector() # Liquid N2O / IPA
+    # coax_inj_ipa_ln2o.size_fuel_holes(Cd = 0.59266, d = 0.2)
+    # coax_inj_ipa_ln2o.size_ox_anulus(Cd = 0.4, ID = 0.5, OD = 0.8)
 
-    igniter.dt = 3e-3
-    igniter.de = 4.5e-3
-    igniter.update()
-    # igniter.eps = 1
+    # igniter.dt = 3e-3
+    # igniter.de = 4.5e-3
+    # igniter.update()
+    # # igniter.eps = 1
      
-    propane = Fluid(FluidsList.nPropane)
-    propane.update(Input.temperature(ambient_T), Input.quality(100))
-    propane_vp = (propane.pressure-100)/1e5
+    # propane = Fluid(FluidsList.nPropane)
+    # propane.update(Input.temperature(ambient_T), Input.quality(100))
+    # propane_vp = (propane.pressure-100)/1e5
 
-    nitrous = Fluid(FluidsList.NitrousOxide)
-    nitrous.update(Input.temperature(ambient_T), Input.quality(0))
-    nitrous_vp = (nitrous.pressure-100)/1e5
-    nitrous_density = nitrous.density
+    # nitrous = Fluid(FluidsList.NitrousOxide)
+    # nitrous.update(Input.temperature(ambient_T), Input.quality(0))
+    # nitrous_vp = (nitrous.pressure-100)/1e5
+    # nitrous_density = nitrous.density
 
-    print(f'Nitrous Saturation Pressure: {nitrous_vp:.3f} bar')
+    # print(f'Nitrous Saturation Pressure: {nitrous_vp:.3f} bar')
     # print(f'Propane Saturation Pressure: {propane_vp:.3f} bar')
 
     # Working: 
@@ -1802,41 +1858,41 @@ if __name__ == '__main__':
     #     ox_gas_class = nitrous,
     #     ox_temp = ambient_T,
     # )
-    tank_p = 40
-    nitrous_p = 40
-    vp = 30
+    # tank_p = 40
+    # nitrous_p = 40
+    # vp = 30
 
-    nitrous.update(Input.pressure(vp*1e5), Input.quality(0))
-    T = nitrous.temperature
-    nitrous.update(Input.temperature(T), Input.pressure(tank_p*1e5))
-    print(f"Nitrous Density: {nitrous.density:.3f} kg/m³")
+    # nitrous.update(Input.pressure(vp*1e5), Input.quality(0))
+    # T = nitrous.temperature
+    # nitrous.update(Input.temperature(T), Input.pressure(tank_p*1e5))
+    # print(f"Nitrous Density: {nitrous.density:.3f} kg/m³")
 
-    igniter.system_combustion_sim(
-        fuel = 'Isopropanol',
-        ox = 'N2O',
-        fuel_upstream_p = tank_p,
-        ox_upstream_p = nitrous_p,
-        fuel_rho = 786,
-        ox_rho = nitrous.density,
-        fuel_total_CdA = coax_inj_ipa_ln2o.fuel_total_CdA,
-        ox_CdA = coax_inj_ipa_ln2o.ox_CdA,
-        cstar_eff = 0.7,
-    )
-    igniter.print_data()
-    coax_inj_ipa_ln2o.calc_start_mdot(
-        fuel_inj_p = tank_p,
-        fuel_rho = 786,
-        ox_inj_p = tank_p,
-        ox_rho = nitrous.density,
-    )
+    # igniter.system_combustion_sim(
+    #     fuel = 'Isopropanol',
+    #     ox = 'N2O',
+    #     fuel_upstream_p = tank_p,
+    #     ox_upstream_p = nitrous_p,
+    #     fuel_rho = 786,
+    #     ox_rho = nitrous.density,
+    #     fuel_total_CdA = coax_inj_ipa_ln2o.fuel_total_CdA,
+    #     ox_CdA = coax_inj_ipa_ln2o.ox_CdA,
+    #     cstar_eff = 0.7,
+    # )
+    # igniter.print_data()
+    # coax_inj_ipa_ln2o.calc_start_mdot(
+    #     fuel_inj_p = tank_p,
+    #     fuel_rho = 786,
+    #     ox_inj_p = tank_p,
+    #     ox_rho = nitrous.density,
+    # )
 
-    OFsweep(
-        fuel = 'Ethanol',
-        ox = 'LOX',
-        OFstart = 0,
-        OFend = 5,
-        pc = 20,
-        cr = 4,
-    )
+    # OFsweep(
+    #     fuel = 'Ethanol',
+    #     ox = 'LOX',
+    #     OFstart = 0,
+    #     OFend = 5,
+    #     pc = 20,
+    #     cr = 4,
+    # )
 
     plt.show(block=True)

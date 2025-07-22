@@ -1,23 +1,18 @@
-from math import nan
-from string import printable
-from matplotlib.pylab import f
-from pyfluids import Fluid, FluidsList, Input
 import numpy as np
+import scipy.optimize as sp
 import matplotlib.pyplot as plt
-from thermo import VaporPressure
+from pyfluids import Fluid, FluidsList, Input
 from thermo.chemical import Chemical
 from rocketcea.cea_obj_w_units import CEA_Obj
-import scipy.optimize as sp
 
 class FluidProperty:
     def __init__(self, name, temperatures):
         self.name = name
-        self.temperatures = temperatures
-        self.temps_K = temperatures + 273.15
-        self.rho = np.zeros_like(self.temps_K)
-        self.cp = np.zeros_like(self.temps_K)
-        self.visc = np.zeros_like(self.temps_K)
-        self.k = np.zeros_like(self.temps_K)
+        self.temps = temperatures
+        self.rho = np.zeros_like(self.temps)
+        self.cp = np.zeros_like(self.temps)
+        self.visc = np.zeros_like(self.temps)
+        self.k = np.zeros_like(self.temps)
         self.h = None
         
     def calculate_heat_transfer(self, D_h):
@@ -54,20 +49,17 @@ class FluidProperty:
             make_debug_prints=False)
         
         def cstar_func(OF):
-            eps = self.cea.get_eps_at_PcOvPe(Pc=self.pc/1e5, MR=OF, PcOvPe=(self.pc/self.pe))
-            [_, cstar, _] = self.cea.get_IvacCstrTc(Pc=self.pc/1e5, MR=OF, eps=eps, frozen=0, frozenAtThroat=0)
-            return -1 * cstar
+            return -self.cea.get_Cstar(Pc = self.pc/1e5, MR = OF)
         
-        # Use the correct minimize function and extract the result
         result = sp.minimize_scalar(cstar_func, bounds=[0.1, 10])
-        self.OF = result.x if result.success else nan
+        self.OF = result.x if result.success else np.nan
         eps = self.cea.get_eps_at_PcOvPe(Pc=self.pc/1e5, MR=self.OF, PcOvPe=(self.pc/self.pe))
         [self.isp, _] = self.cea.estimate_Ambient_Isp(Pc=self.pc/1e5, MR=self.OF, eps=eps, Pamb=1.01325, frozen=0, frozenAtThroat=0)
 
 
 class PyFluidsProperty(FluidProperty):
-    def __init__(self, name, fluid_type, temperatures, fuel_name, ox_name, pc=25e5, pe=1e5, isox=False):
-        super().__init__(name, temperatures)
+    def __init__(self, name, fluid_type, temps, fuel_name, ox_name, pc=25e5, pe=1e5, isox=False):
+        super().__init__(name, temps)
         self.fluid = Fluid(fluid_type)
         self.ox_name = ox_name
         self.fuel_name = fuel_name
@@ -78,25 +70,25 @@ class PyFluidsProperty(FluidProperty):
 
     def calculate_properties(self):
         """Calculate fluid properties for each temperature"""
-        for i, T in enumerate(self.temperatures):
+        for i, T in enumerate(self.temps):
             try:
-                self.fluid.update(Input.temperature(T), Input.pressure(self.pc))
+                self.fluid.update(Input.temperature(T-273.15), Input.pressure(self.pc))
                 self.rho[i] = self.fluid.density
                 self.cp[i] = self.fluid.specific_heat
-                self.visc[i] = self.fluid.dynamic_viscosity if self.fluid.dynamic_viscosity > 0 else nan
+                self.visc[i] = self.fluid.dynamic_viscosity if self.fluid.dynamic_viscosity > 0 else np.nan
                 self.k[i] = self.fluid.conductivity
             except ValueError:
-                # Set values to NaN if calculation fails
+                # Set values to Np.nan if calculation fails
                 self.rho[i] = np.nan
                 self.cp[i] = np.nan
                 self.visc[i] = np.nan
                 self.k[i] = np.nan
 
 class IsopropanolProperty(FluidProperty):
-    def __init__(self, temperatures, fuel_name, ox_name, pc=25e5, pe=1e5):
-        super().__init__("Isopropanol", temperatures)
+    def __init__(self, temps, fuel_name, ox_name, pc=25e5, pe=1e5):
+        super().__init__("Isopropanol", temps)
         self.ipa = Chemical("isopropanol")
-        self.ipa_vp = np.zeros_like(self.temps_K)
+        self.vp = np.zeros_like(self.temps)
         self.ox_name = ox_name
         self.fuel_name = fuel_name
         self.pc = pc
@@ -106,24 +98,15 @@ class IsopropanolProperty(FluidProperty):
         
     def calculate_properties(self):
         """Calculate isopropanol properties using thermo library"""
-        for i, T in enumerate(self.temps_K):
-            try:
-                self.ipa.T = T
-                self.rho[i] = self.ipa.rho
-                self.cp[i] = self.ipa.Cp
-                self.k[i] = self.ipa.k
-                self.ipa_vp[i] = VaporPressure(CASRN="67-63-0").calculate(T=T, method='WAGNER_MCGARRY')
-                self.visc[i] = self.ipa.ViscosityLiquid(P=self.ipa_vp[i], T=T)
-            except ValueError:
-                # Set values to NaN if calculation fails
-                self.rho[i] = np.nan
-                self.cp[i] = np.nan
-                self.k[i] = np.nan
-                self.visc[i] = np.nan
+        for i, T in enumerate(self.temps):
+            self.ipa.calculate(T, self.pc)
+            self.rho[i] = self.ipa.rho
+            self.cp[i] = self.ipa.Cp
+            self.k[i] = self.ipa.k
+            self.vp[i] = self.ipa.Psat
+            self.visc[i] = self.ipa.mu
 
-# Create temperature range
-# temperatures = np.linspace(90.2, 400, 100) - 273.15
-temperatures = np.linspace(270, 400, 100) - 273.15
+temperatures = np.linspace(270, 450, 100)
 pc = 20e5  # Pressure in Pa
 pe = 1.01325e5  # Pressure in Pa
 
@@ -143,15 +126,13 @@ fluids = [
     # PyFluidsProperty("LOX cooled - Ethanol", FluidsList.Oxygen, temperatures, "Ethanol", "LOX", pc=pc, pe=pe, isox=True),
     # PyFluidsProperty("LOX cooled - Methanol", FluidsList.Oxygen, temperatures, "Methanol", "LOX", pc=pc, pe=pe, isox=True),
     # PyFluidsProperty("LOX cooled - IPA", FluidsList.Oxygen, temperatures, "Isopropanol", "LOX", pc=pc, pe=pe, isox=True),
-#     PyFluidsProperty("LOX cooled - Methane", FluidsList.Oxygen, temperatures, "CH4", "LOX", pc=pc, pe=pe, isox=True),
+    # PyFluidsProperty("LOX cooled - Methane", FluidsList.Oxygen, temperatures, "CH4", "LOX", pc=pc, pe=pe, isox=True),
 ]
 
-# Calculate heat transfer coefficients
 for fluid in fluids:
     fluid.calculate_heat_transfer(D_h)
     print(f"{fluid.name} - OF: {fluid.OF:.2f}, Isp: {fluid.isp:.2f} sec")
 
-# Plotting properties
 fig, axs = plt.subplots(2, 2, figsize=(12, 10))
 colors = ['tab:blue', 'tab:red', 'tab:green', 'tab:orange', 'tab:purple', 'tab:pink', 'tab:brown', 'tab:cyan']
 ylabels = [
@@ -162,12 +143,11 @@ ylabels = [
 ]
 titles = ['Density', 'Specific Heat', 'Thermal Conductivity', 'Heat Transfer Coefficient']
 
-# Plot all 4 properties
 for idx, (ylabel, key) in enumerate(ylabels):
     ax = axs[idx//2, idx%2]
     for i, fluid in enumerate(fluids):
         values = fluid.h*1e-3 if key == 'h' else getattr(fluid, key)
-        ax.plot(fluid.temps_K, values, label=fluid.name, color=colors[i % len(colors)])
+        ax.plot(fluid.temps, values, label=fluid.name, color=colors[i % len(colors)])
     ax.set_xlabel('Temperature (K)')
     ax.set_ylabel(ylabel)
     ax.set_title(titles[idx])
@@ -175,9 +155,8 @@ for idx, (ylabel, key) in enumerate(ylabels):
     ax.grid()
     ax.grid(which='minor', alpha=0.5)
     ax.set_ylim(0, None)
-    ax.set_xlim(min(fluid.temps_K), max(fluid.temps_K))
+    ax.set_xlim(min(fluid.temps), max(fluid.temps))
 
-# Add special title for heat transfer coefficient
 htc_ax = axs[1, 1]
 htc_ax.set_title(f'Heat Transfer Coefficient\n(D_h = {D_h*1e3:.2f}mm) - Density, OF, ISP corrected')
 

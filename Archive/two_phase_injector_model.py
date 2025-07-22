@@ -2,7 +2,7 @@ import numpy as np
 from pyfluids import Fluid, FluidsList, Input
 import matplotlib.pyplot as plt
 from os import system
-from flow_models import *
+from two_phase_models import *
 
 system("cls")
 

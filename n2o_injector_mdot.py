@@ -156,11 +156,11 @@ fig, axs = plt.subplots(2, 2, figsize=(15, 12))
 
 # Rocket estimated pressures - 4.7 kN
 
-P_up = 36.01e5
-vp = 36e5
-pc = 24e5
+P_up = 35.6e5
+vp = 31.9e5
+pc = 31.8e5
 
-Cd = 0.65
+Cd = 0.75
 
 pintle_d = 17.27e-3
 pintle_id = 12e-3
@@ -183,8 +183,6 @@ pressure_force_hot = 0.25 * np.pi * (pintle_d ** 2) * (p_inj_max - pc)
 
 stress_cold = pressure_force_cold / pintle_structural_area
 stress_hot = pressure_force_hot / pintle_structural_area
-
-
 
 # print(0.5 * (pintle_d - pintle_id) * hole_d * 1e6)
 

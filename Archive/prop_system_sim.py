@@ -2,22 +2,10 @@ import enginesim as es
 import numpy as np
 import matplotlib.pyplot as plt
 from pyfluids import Fluid, FluidsList, Mixture, Input
+import unit_conversion as 
 
 # Unit Conversions
-bar2psi = lambda x: x * 14.5038
-psi2bar = lambda x: x / 14.5038
-bar2pa = lambda x: x * 100000
-pa2bar = lambda x: x / 100000
-psi2pa = lambda x: x * 6894.76
-pa2psi = lambda x: x / 6894.76
-degC2K = lambda x: x + 273.15
-K2degC = lambda x: x - 273.15
-f2degC = lambda x: (x - 32) * 5/9
-degC2f = lambda x: x * 9/5 + 32
-f2K = lambda x: degC2K(f2degC(x))
-K2f = lambda x: degC2f(K2degC(x))
-l2m3 = lambda x: x / 1000
-m32l = lambda x: x * 1000
+
 
 def total_CdA(*vals):
     return (sum([CdA**-2 for CdA in vals]))**-0.5
