@@ -19,7 +19,7 @@ vp_up = 30e5
 
 # # Large engines: 1 lg/s - 2.5 kg/s
 
-# mdot = 1
+# mdot = 0.8
 mdot = 2.5
 
 # dP: 0.48 - 3.72 bar

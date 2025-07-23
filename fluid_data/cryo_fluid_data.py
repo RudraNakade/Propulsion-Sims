@@ -11,6 +11,7 @@ fluids_list = [
     {'name': 'Propane', 'fluid_type': FluidsList.nPropane}, 
     {'name': 'Methane', 'fluid_type': FluidsList.Methane},  
     {'name': 'Hydrogen', 'fluid_type': FluidsList.Hydrogen},
+    {'name': 'Helium', 'fluid_type': FluidsList.Helium},
 ]
 
 # Initialize fluids
@@ -25,13 +26,14 @@ for fluid in fluids_list:
         'vapor_pressure': None,
         }
 
-P = np.concatenate([np.array([1, 5]), np.linspace(10, 100, 10)]) * 1e5  # Pressure range
+P = np.concatenate([np.array([1, 2])]) * 1e5 #, np.linspace(10, 100, 10)]) * 1e5  # Pressure range
 
 # Calculate density data for each fluid
 for name, fluid_info in fluids.items():
     fluid = fluid_info['fluid']
     
-    T_fluid = np.linspace(fluid.min_temperature+1.1, 500-273.15, 500)
+    # T_fluid = np.linspace(fluid.min_temperature+1.1, 500-273.15, 500)
+    T_fluid = np.arange(250, 351, 1) - 273.15
     
     # Initialize arrays for all properties
     fluid_info['density'] = np.zeros((len(P), len(T_fluid)))
@@ -56,7 +58,7 @@ for name, fluid_info in fluids.items():
                 fluid_info['vapor_pressure'][i] = None
 
 # storage_pressure = 1e5 # atmospheric pressure
-storage_pressure = 5e5 # 5 bar(g)
+storage_pressure = 1e5 # 5 bar(g)
 
 
 
@@ -188,10 +190,10 @@ def plot_properties_1d(fluids, property_name, ylabel, title_suffix):
     plt.tight_layout()
     return fig
 
-# density_fig = plot_properties_2d(fluids, P, 'density', 'Density (kg/m³)', 'Density vs Temperature')
-# specific_heat_fig = plot_properties_2d(fluids, P, 'specific_heat', 'Specific Heat (J/kg·K)', 'Specific Heat vs Temperature')
-# conductivity_fig = plot_properties_2d(fluids, P, 'conductivity', 'Thermal Conductivity (W/m·K)', 'Thermal Conductivity vs Temperature')
-# compressibility_fig = plot_properties_2d(fluids, P, 'compressibility', 'Compressibility Factor', 'Compressibility vs Temperature')
-vapor_pressure_fig = plot_properties_1d(fluids, 'vapor_pressure', 'Vapor Pressure (Bar)', 'Vapor Pressure vs Temperature')
+density_fig = plot_properties_2d(fluids, P, 'density', 'Density (kg/m³)', 'Density vs Temperature')
+specific_heat_fig = plot_properties_2d(fluids, P, 'specific_heat', 'Specific Heat (J/kg·K)', 'Specific Heat vs Temperature')
+conductivity_fig = plot_properties_2d(fluids, P, 'conductivity', 'Thermal Conductivity (W/m·K)', 'Thermal Conductivity vs Temperature')
+compressibility_fig = plot_properties_2d(fluids, P, 'compressibility', 'Compressibility Factor', 'Compressibility vs Temperature')
+# vapor_pressure_fig = plot_properties_1d(fluids, 'vapor_pressure', 'Vapor Pressure (Bar)', 'Vapor Pressure vs Temperature')
 
 plt.show()

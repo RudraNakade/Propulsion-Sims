@@ -1,3 +1,5 @@
+import numpy as np
+
 psi_in_bar = 14.503773773
 
 in2mm = lambda x: float(x) * 25.4
@@ -23,3 +25,9 @@ degC2f = lambda x: float(x) * 9/5 + 32
 
 f2K = lambda x: degC2K(f2degC(float(x)))
 K2f = lambda x: degC2f(K2degC(float(x)))
+
+# flow coefficients
+gal2L = lambda x: float(x) * 3.78541178
+
+Cv2CdA = lambda Cv: float(Cv) * gal2L(1) / (60 * np.sqrt(2 * 1000 * psi2pa(1)))
+Kv2CdA = lambda Kv: float(Kv) * 1000 / (3600 * np.sqrt(2 * 1000 * 1e5))

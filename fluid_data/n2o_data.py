@@ -14,7 +14,6 @@ cp = np.zeros((len(pressure), len(temperature)))
 k = np.zeros((len(pressure), len(temperature)))
 visc = np.zeros((len(pressure), len(temperature)))
 hvap = np.zeros(len(temperature))
-hf = np.zeros((len(temperature)))
 
 for j, t in enumerate(temperature):
     for i, p in enumerate(pressure):
@@ -25,7 +24,6 @@ for j, t in enumerate(temperature):
         visc[i, j] = n2o.mu
 
     hvap[j] = n2o.Hvap if n2o.Hvap is not None else None
-    hf[j] = n2o.Hf if n2o.Hf is not None else None
 
 fig, axes = plt.subplots(2, 3, figsize=(12, 10))
 
@@ -72,13 +70,6 @@ axes[1,1].set_xlabel('Temperature (K)')
 axes[1,1].set_ylabel('Heat of Vaporization (kJ/kg)')
 axes[1,1].set_title('Heat of Vaporization vs Temperature')
 axes[1,1].grid(True)
-
-# Enthalpy of formation plot
-for i, p in enumerate(pressure):
-    axes[1,2].plot(temperature, hf*1e-3)
-axes[1,2].set_xlabel('Temperature (K)')
-axes[1,2].set_ylabel('Enthalpy of Formation (kJ/kg)')
-axes[1,2].grid(True)
 
 plt.tight_layout()
 plt.show()

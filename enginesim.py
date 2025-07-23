@@ -1,3 +1,5 @@
+from calendar import c
+from matplotlib.artist import get
 from rocketcea.cea_obj_w_units import CEA_Obj
 from rocketcea.cea_obj import add_new_fuel
 from pyfluids import Fluid, FluidsList, Input
@@ -7,7 +9,7 @@ from matplotlib.ticker import AutoMinorLocator
 from os import path, system
 import numpy as np
 import scipy as sp
-import csv
+import time
 import warnings
 
 class bcolors:
@@ -205,6 +207,8 @@ def OFsweep(fuel, ox, OFstart, OFend, pc, pe = None, cr = None, pamb=1.01325, sh
 class engine:
     def __init__(self, file):
         self.file = file
+        self.fuel = None
+        self.ox = None
         if path.exists(self.file) and path.getsize(self.file) > 0:
             with open(self.file, 'r') as input_file:
                 data = input_file.readlines()
@@ -261,6 +265,16 @@ class engine:
             self.le = (self.re - self.rt) / np.tan(np.deg2rad(self.div_angle))
         self.ltotal = self.lc + self.le + self.ln
 
+    def set_props(self, fuel=None, ox=None):
+        """Set the fuel and oxidizer for the engine."""
+        if fuel is not None:
+            self.fuel = fuel
+        if ox is not None:
+            self.ox = ox
+        if self.fuel is None or self.ox is None:
+            raise ValueError("Fuel and oxidizer must be specified.")
+        self.gen_cea_obj()
+
     def gen_cea_obj(self):
         self.cea = CEA_Obj(
             oxName = self.ox,
@@ -278,8 +292,9 @@ class engine:
             fac_CR=self.cr,
             make_debug_prints=False)
 
-    def combustion_sim(self, fuel, ox, OF, pc, pamb = 1.01325, cstar_eff = 1, sizing=False, **kwargs):
+    def combustion_sim(self, fuel, ox, OF, pc, pamb = 1.01325, cstar_eff = 1, sizing=False, simplified=False, **kwargs):
         __doc__ = """Simulates combustion of the engine and optionally sizes the engine.
+        
             Parameters:
             -----------
             fuel : str
@@ -328,105 +343,111 @@ class engine:
             engine performance. When sizing=True, it also generates the engine geometry
             including chamber and nozzle contours.
             """
-        self.fuel = fuel
-        self.ox = ox
         self.OF = OF
         self.pc = pc
         self.pamb = pamb
         self.cstar_eff = cstar_eff
 
-        if sizing == True:
-            self.thrust = kwargs['thrust']
-            self.pe = kwargs['pe']
-            self.cr = kwargs['cr']
-            self.conv_angle = kwargs['conv_angle']
-            self.lstar = kwargs['lstar']
-            self.rao_percentage = kwargs['rao_percentage']
+        # if sizing == True:
+        #     self.thrust = kwargs['thrust']
+        #     self.pe = kwargs['pe']
+        #     self.cr = kwargs['cr']
+        #     self.conv_angle = kwargs['conv_angle']
+        #     self.lstar = kwargs['lstar']
+        #     self.rao_percentage = kwargs['rao_percentage']
 
+        self.set_props(fuel=fuel, ox=ox)
         self.gen_cea_obj()
 
-        if sizing == True:
-            self.eps = self.cea.get_eps_at_PcOvPe(Pc=self.pc, MR=self.OF, PcOvPe=(self.pc/self.pe))
+        # if sizing == True:
+            # self.eps = self.cea.get_eps_at_PcOvPe(Pc=self.pc, MR=self.OF, PcOvPe=(self.pc/self.pe))
 
-        [self.ispvac, self.cstar, _] = self.cea.get_IvacCstrTc(Pc=self.pc, MR=self.OF, eps=self.eps)
-        [self.ispsea, _] = self.cea.estimate_Ambient_Isp(Pc=self.pc, MR=self.OF, eps=self.eps, Pamb=1.01325, frozen=0, frozenAtThroat=0)
-        [self.Tg_c, self.Tg_t, self.Tg_e] = self.cea.get_Temperatures(Pc=self.pc, MR=self.OF, eps=self.eps, frozen=0, frozenAtThroat=0)
-        self.ispsea = self.ispsea * self.cstar_eff
-        self.ispvac = self.ispvac * self.cstar_eff
-        self.cstar = self.cstar * self.cstar_eff
-        self.pt = self.pc/self.cea.get_Throat_PcOvPe(Pc=self.pc, MR=self.OF)
+        self.cstar = self.cea.get_Cstar(Pc=self.pc, MR=self.OF) * cstar_eff
         [_, self.cf, self.exitcond] = self.cea.get_PambCf(Pamb=self.pamb, Pc=self.pc, MR=self.OF, eps=self.eps)
-        if sizing == True:
-            self.at = self.thrust / (self.pc * self.cf * 1e5)
+
+        t = time.time()
+
+        if not simplified:
+            self.ispvac = self.cea.get_Isp(Pc=self.pc, MR=self.OF, eps=self.eps) * cstar_eff
+            [self.ispsea, _] = self.cea.estimate_Ambient_Isp(Pc=self.pc, MR=self.OF, eps=self.eps, Pamb=1.01325, frozen=0, frozenAtThroat=0)
+            self.ispsea = self.ispsea * self.cstar_eff
+            [self.Tg_c, self.Tg_t, self.Tg_e] = self.cea.get_Temperatures(Pc=self.pc, MR=self.OF, eps=self.eps, frozen=0, frozenAtThroat=0)
+            self.pt = self.pc/self.cea.get_Throat_PcOvPe(Pc=self.pc, MR=self.OF)
+            self.PinjPcomb = self.cea.get_Pinj_over_Pcomb(Pc=self.pc, MR=self.OF)
+            self.Me = self.cea.get_MachNumber(Pc=self.pc, MR=self.OF, eps=self.eps, frozen=0, frozenAtThroat=0)
+            [self.cp_c, self.mu_c, self.k_c, self.pr_c] = self.cea.get_Chamber_Transport(Pc=self.pc, MR=self.OF, eps=self.eps)
+            [self.cp_t, self.mu_t, self.k_t, self.pr_t] = self.cea.get_Throat_Transport(Pc=self.pc, MR=self.OF, eps=self.eps)
+            [self.cp_e, self.mu_e, self.k_e, self.pr_e] = self.cea.get_Exit_Transport(Pc=self.pc, MR=self.OF, eps=self.eps, frozen=0, frozenAtThroat=0)
+            [_, self.gam_t] = self.cea.get_Throat_MolWt_gamma(Pc=self.pc, MR=self.OF, eps=self.eps, frozen=0)
+            [_, self.gam_c] = self.cea.get_Chamber_MolWt_gamma(Pc=self.pc, MR=self.OF, eps=self.eps)
+            [_, self.gam_e] = self.cea.get_exit_MolWt_gamma(Pc=self.pc, MR=self.OF, eps=self.eps, frozen=0, frozenAtThroat=0)
+            self.mu_c = self.mu_c * 1e-3 # now pa-s
+            self.k_c = self.k_c * 100 # now W/m-K
+
+        # if sizing == True:
+        #     self.at = self.thrust / (self.pc * self.cf * 1e5)
+
+        t = time.time()
         self.mdot = self.pc * 1e5 * self.at / self.cstar
         self.ox_mdot = self.mdot * self.OF / (1 + self.OF)
         self.fuel_mdot = self.mdot / (1 + self.OF)
-        if sizing == False:
-            self.thrust = self.cf * self.mdot * self.cstar
-        self.isp = self.thrust / (self.mdot * g)
-        self.PinjPcomb = self.cea.get_Pinj_over_Pcomb(Pc=self.pc, MR=self.OF)
-        self.Me = self.cea.get_MachNumber(Pc=self.pc, MR=self.OF, eps=self.eps, frozen=0, frozenAtThroat=0)
-        [self.cp_c, self.mu_c, self.k_c, self.pr_c] = self.cea.get_Chamber_Transport(Pc=self.pc, MR=self.OF, eps=self.eps)
-        [self.cp_t, self.mu_t, self.k_t, self.pr_t] = self.cea.get_Throat_Transport(Pc=self.pc, MR=self.OF, eps=self.eps)
-        [self.cp_e, self.mu_e, self.k_e, self.pr_e] = self.cea.get_Exit_Transport(Pc=self.pc, MR=self.OF, eps=self.eps, frozen=0, frozenAtThroat=0)
-        [_, self.gam_t] = self.cea.get_Throat_MolWt_gamma(Pc=self.pc, MR=self.OF, eps=self.eps, frozen=0)
-        [_, self.gam_c] = self.cea.get_Chamber_MolWt_gamma(Pc=self.pc, MR=self.OF, eps=self.eps)
-        [_, self.gam_e] = self.cea.get_exit_MolWt_gamma(Pc=self.pc, MR=self.OF, eps=self.eps, frozen=0, frozenAtThroat=0)
-        self.mu_c = self.mu_c * 1e-3 # now pa-s
-        self.k_c = self.k_c * 100 # now W/m-K
 
-        if sizing == True:
-            self.rt = np.sqrt(self.at/np.pi)
-            self.dt = 2*self.rt
+        # if sizing == False:
+        self.thrust = self.cf * self.mdot * self.cstar
+        self.isp = self.thrust / (self.mdot * g)         
 
-            self.ae = self.at * self.eps
-            self.re = np.sqrt(self.ae/np.pi)
-            self.de = 2*self.re
+        # if sizing == True:
+        #     self.rt = np.sqrt(self.at/np.pi)
+        #     self.dt = 2*self.rt
 
-            self.ac = self.at * self.cr
-            self.rc = np.sqrt(self.ac/np.pi)
-            self.dc = 2*self.rc
+        #     self.ae = self.at * self.eps
+        #     self.re = np.sqrt(self.ae/np.pi)
+        #     self.de = 2*self.re
 
-            self.R2 = (self.rc - self.rt)/(1 - np.cos(np.deg2rad(self.conv_angle))) - 1.5*self.rt
+        #     self.ac = self.at * self.cr
+        #     self.rc = np.sqrt(self.ac/np.pi)
+        #     self.dc = 2*self.rc
 
-            self.n_points = 100
-            l = np.linspace(0, (self.R2*np.sin(np.deg2rad(self.conv_angle))), self.n_points)
-            r = np.sqrt(self.R2**2 - l**2) + self.rc - self.R2
-            l2 = np.linspace(0, (1.5*self.rt*np.sin(np.deg2rad(self.conv_angle))), self.n_points)
-            r2 = 2.5*self.rt - np.sqrt((1.5*self.rt)**2 - (l2 - 1.5*self.rt*np.sin(np.deg2rad(self.conv_angle)))**2)
+        #     self.R2 = (self.rc - self.rt)/(1 - np.cos(np.deg2rad(self.conv_angle))) - 1.5*self.rt
+
+        #     self.n_points = 100
+        #     l = np.linspace(0, (self.R2*np.sin(np.deg2rad(self.conv_angle))), self.n_points)
+        #     r = np.sqrt(self.R2**2 - l**2) + self.rc - self.R2
+        #     l2 = np.linspace(0, (1.5*self.rt*np.sin(np.deg2rad(self.conv_angle))), self.n_points)
+        #     r2 = 2.5*self.rt - np.sqrt((1.5*self.rt)**2 - (l2 - 1.5*self.rt*np.sin(np.deg2rad(self.conv_angle)))**2)
             
-            self.vc = self.lstar*self.at
-            self.vcyl = self.vc - np.sum(r[0:-1]*r[0:-1])*np.pi*(self.R2*np.sin(np.deg2rad(self.conv_angle)))/(self.n_points-1) - np.sum(r2[0:-1]*r2[0:-1])*np.pi*(1.5*self.rt*np.sin(np.deg2rad(self.conv_angle)))/(self.n_points-1)
+        #     self.vc = self.lstar*self.at
+        #     self.vcyl = self.vc - np.sum(r[0:-1]*r[0:-1])*np.pi*(self.R2*np.sin(np.deg2rad(self.conv_angle)))/(self.n_points-1) - np.sum(r2[0:-1]*r2[0:-1])*np.pi*(1.5*self.rt*np.sin(np.deg2rad(self.conv_angle)))/(self.n_points-1)
 
-            if self.vcyl < 0:
-                raise ValueError('L* too short / Contraction ratio too high') 
+        #     if self.vcyl < 0:
+        #         raise ValueError('L* too short / Contraction ratio too high') 
 
-            self.lcyl = self.vcyl/self.ac
-            self.lc = self.lcyl + (self.R2+1.5*self.rt)*np.sin(np.deg2rad(self.conv_angle))
-            self.le = (np.sqrt(self.eps)-1)*self.rt*self.rao_percentage/(100*np.tan(np.deg2rad(15)))
+        #     self.lcyl = self.vcyl/self.ac
+        #     self.lc = self.lcyl + (self.R2+1.5*self.rt)*np.sin(np.deg2rad(self.conv_angle))
+        #     self.le = (np.sqrt(self.eps)-1)*self.rt*self.rao_percentage/(100*np.tan(np.deg2rad(15)))
 
-            # self.nozzle = Nozzle(
-            #     Rt = self.rt * 1000 / 25.4,
-            #     CR = self.cr,
-            #     eps = self.eps,
-            #     pcentBell = self.rao_percentage,
-            #     Rup = 1.5,
-            #     Rd = 0.382,
-            #     Rc = self.R2/self.rt,
-            #     cham_conv_ang = self.conv_angle,
-            #     theta = None,
-            #     exitAng = None,
-            #     forceCone = 0,
-            #     use_huzel_angles = True)
+        #     # self.nozzle = Nozzle(
+        #     #     Rt = self.rt * 1000 / 25.4,
+        #     #     CR = self.cr,
+        #     #     eps = self.eps,
+        #     #     pcentBell = self.rao_percentage,
+        #     #     Rup = 1.5,
+        #     #     Rd = 0.382,
+        #     #     Rc = self.R2/self.rt,
+        #     #     cham_conv_ang = self.conv_angle,
+        #     #     theta = None,
+        #     #     exitAng = None,
+        #     #     forceCone = 0,
+        #     #     use_huzel_angles = True)
 
-            self.theta_n = 22 # self.nozzle.theta
-            self.theta_e = 14 # self.nozzle.exitAng
+        #     self.theta_n = 22 # self.nozzle.theta
+        #     self.theta_e = 14 # self.nozzle.exitAng
 
-            self.generate_contour()
+        #     self.generate_contour()
 
-            self.save()
-        else:
-            self.pe = self.pc/self.cea.get_PcOvPe(Pc=self.pc, MR=self.OF, eps=self.eps)
+        #     self.save()
+        # else:
+        self.pe = self.pc/self.cea.get_PcOvPe(Pc=self.pc, MR=self.OF, eps=self.eps)
 
         # self.print_data()
 
@@ -572,7 +593,24 @@ class engine:
         self.OF = OF
         self.pc = pc
 
-    def mdot_combustion_sim(self, fuel, ox, fuel_mdot, ox_mdot, pamb = 1.01325, cstar_eff = 1):
+    def pc_of_mdot_calc(self, fuel, ox, pc, OF, cstar_eff = 1):
+        self.fuel = fuel
+        self.ox = ox
+
+        cstar = self.cea.get_Cstar(pc, OF) * cstar_eff
+        total_mdot = 1e5 * pc * self.at / cstar
+        fuel_mdot = total_mdot / (1 + OF)
+        ox_mdot = total_mdot * OF / (1 + OF)
+
+        return fuel_mdot, ox_mdot
+
+    def mdot_solver_func(self, pc, OF, cstar_eff, total_mdot):
+        cstar = self.cea.get_Cstar(Pc=pc, MR=OF) * cstar_eff
+        mdot = pc * 1e5 * self.at / cstar
+        return (mdot - total_mdot)
+
+    def mdot_combustion_sim(self, fuel, ox, fuel_mdot, ox_mdot, pamb = 1.01325, cstar_eff = 1, full_sim=True):
+        t = time.time()
         total_mdot = fuel_mdot + ox_mdot
         self.OF = ox_mdot / fuel_mdot
         self.fuel = fuel
@@ -580,23 +618,17 @@ class engine:
 
         self.gen_cea_obj()
 
-        # cstar = pc * at / mdot - pc unknown
-
-        cstar = 1500 # initial guess
-
-        def mdot_func(pc, cstar, OF, mdot):
-            self.combustion_sim(fuel, ox, OF, pc, pamb, cstar_eff)
-            return (self.mdot - total_mdot)
-        
         with warnings.catch_warnings(record=True):
             warnings.simplefilter("always", category=RuntimeWarning)
             try:
-                pc = sp.optimize.root_scalar(mdot_func, bracket=[1, 500], args=(cstar, self.OF, total_mdot), method='brentq').root
+                pc = sp.optimize.root_scalar(self.mdot_solver_func, bracket=[1, 500], args=(self.OF, cstar_eff, total_mdot), method='brentq', rtol=1e-3).root
             except ValueError:
                 print(f"{bcolors.FAIL}Error: Could not find a solution.{bcolors.ENDC}")
                 return
-        
-        self.combustion_sim(fuel, ox, self.OF, pc, pamb, cstar_eff)
+        if full_sim:
+            self.combustion_sim(fuel, ox, self.OF, pc, pamb, cstar_eff, simplified=False)
+        else:
+            self.combustion_sim(fuel, ox, self.OF, pc, pamb, cstar_eff, simplified=True)
 
     def generate_contour(self):
         self.n_points = 20

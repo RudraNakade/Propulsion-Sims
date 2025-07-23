@@ -17,7 +17,7 @@ fuels = []
 
 # ox = 'LOX'
 ox = 'N2O'
-pc = 24
+pc = 30
 pe = 1
 nozzle_eff = 1
 
