@@ -24,12 +24,11 @@ mdot = 2.5
 
 # dP: 0.48 - 3.72 bar
 d_inlet = 25.4e-3 * 0.41 # 1/2" swagelok id typ
-d__throat = 9.2e-3 # 9.2 mm nominal, +- 0.1 mm
-
+d_throat = 9.2e-3 # 9.2 mm nominal, +- 0.1 mm
 
 Cd = 0.95
 A_up = np.pi * (d_inlet / 2) ** 2
-A__throat = np.pi * (d__throat / 2) ** 2
+A__throat = np.pi * (d_throat / 2) ** 2
 
 nitrous_up = Fluid(FluidsList.NitrousOxide)
 nitrous_throat = Fluid(FluidsList.NitrousOxide)
@@ -57,9 +56,9 @@ downstream_state = nitrous_throat.phase
 rho_throat = nitrous_throat.density
 mu_throat = n2o.mu
 v_throat = mdot / (rho_throat * A__throat)
-re_throat = (rho_throat * v_throat * d__throat) / mu_throat
+re_throat = (rho_throat * v_throat * d_throat) / mu_throat
 
-print(f"Venturi  : dP = {dp / 1e5:6.4f} Bar, mdot = {mdot:5.3f} kg/s, d_up = {d_inlet * 1e3:4.3f} mm, d_throat = {d__throat * 1e3:4.3f} mm")
+print(f"Venturi  : dP = {dp / 1e5:6.4f} Bar, mdot = {mdot:5.3f} kg/s, d_up = {d_inlet * 1e3:4.3f} mm, d_throat = {d_throat * 1e3:4.3f} mm")
 print(f"Upstream : Re = {re_up:8.3e}, T = {nitrous_up.temperature:6.2f} K, P = {nitrous_up.pressure/1e5:6.2f} Bar, Rho = {rho_up:8.4f} kg/m^3")
 print(f"Throat   : Re = {re_throat:8.3e}, T = {nitrous_throat.temperature:6.2f} K, P = {nitrous_throat.pressure/1e5:6.2f} Bar, Rho = {rho_throat:8.4f} kg/m^3")
 print(f"Throat   : {downstream_state}")

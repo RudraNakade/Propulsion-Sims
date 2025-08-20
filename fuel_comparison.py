@@ -15,21 +15,31 @@ h,cal=-57040.0      t(k)=298.15       wt%=50.00
 add_new_fuel('nitromethanol', card_str )
 fuels = []
 
-# ox = 'LOX'
-ox = 'N2O'
-pc = 30
+# ox = 'Peroxide98'
+ox = 'LOX'
+# ox = 'N2O'
+# ox = 'IRFNA'
+# ox = 'MON3'
+# ox = 'OF2'
+# ox = 'MON15'
+# ox = 'MON25'
+
+pc = 200
 pe = 1
 nozzle_eff = 1
 
-# OF_lims = [0.05, 4]
-OF_lims = [0.05, 10]
+# OF_lims = [0.01, 4]
+OF_lims = [0.1, 10]
 n_points = 250
 
-fuels.append('Methanol')
-fuels.append('Ethanol')
+# fuels.append('Methanol')
+# fuels.append('Ethanol')
 fuels.append('Isopropanol')
 fuels.append('Propane')
 fuels.append('RP-1')
+fuels.append('CH4')
+fuels.append('H2')
+# fuels.append('Hydrazine')
 # fuels.append('Ethane')
 # fuels.append('CH4')
 # fuels.append('C2H6')

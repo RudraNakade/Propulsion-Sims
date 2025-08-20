@@ -1,0 +1,21 @@
+metadata:
+  name: "Torch Igniter"
+
+geometry:
+  nozzle_type: conical
+  
+  # Diameters (mm)
+  chamber_diameter: 10.0
+  throat_diameter: 3.0
+  exit_diameter: 8.8
+
+  # Lengths (mm)
+  chamber_length: 36.103
+  throat_length: 3.9249
+  
+  # Radii and angles
+  cyl_conv_radius: 0.0
+  throat_conv_radius: 0
+  throat_div_radius: 0
+  converging_angle: 59.0
+  diverging_angle: 59.0

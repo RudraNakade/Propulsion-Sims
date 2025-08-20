@@ -1,0 +1,20 @@
+metadata:
+  name: "Pluto Engine"
+
+geometry:
+  nozzle_type: rao
+  
+  # Diameters (mm)
+  chamber_diameter: 92.00
+  throat_diameter: 42.41
+  exit_diameter: 82.23
+  
+  # Lengths (mm)
+  chamber_length: 189.70
+  exit_length: 60.30
+  
+  # Radii and angles
+  cyl_conv_radius: 50
+  converging_angle: 30.00
+  diverging_angle: 21.00
+  exit_angle: 14.0

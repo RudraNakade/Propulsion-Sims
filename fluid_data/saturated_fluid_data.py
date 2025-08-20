@@ -42,8 +42,8 @@ def plot_saturation_properties(fluid):
     fig.tight_layout()
 
 plot_saturation_properties(FluidsList.NitrousOxide)
-plot_saturation_properties(FluidsList.nPropane)
-plot_saturation_properties(FluidsList.nButane)
-plot_saturation_properties(FluidsList.Ethane)
+# plot_saturation_properties(FluidsList.nPropane)
+# plot_saturation_properties(FluidsList.nButane)
+# plot_saturation_properties(FluidsList.Ethane)
 
 plt.show()

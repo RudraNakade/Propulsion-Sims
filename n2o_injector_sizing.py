@@ -2,7 +2,7 @@ import numpy as np
 from pyfluids import Fluid, FluidsList, Input
 from scipy.optimize import root_scalar
 from os import system
-from two_phase_models import *
+from flow_models import *
 
 system("cls")
 
@@ -16,10 +16,10 @@ def calc_NHNE_mdot(tank_p, vapor_p, injector_p, chamber_p, CdA):
     nitrous_up = nitrous_up.isenthalpic_expansion_to_pressure(injector_p)  # Isenthalpic expansion to injector pressure
     nitrous_up_sat.update(Input.temperature(nitrous_up.temperature), Input.quality(100))
 
-    spi_mdot = spi_model(injector_p, chamber_p, nitrous_up.density, NHNE_CdA, 1)
-    hem_mdot = hem_model(nitrous_up, chamber_p, NHNE_CdA, 1)
+    spi_mdot = spi_mdot(injector_p, chamber_p, nitrous_up.density, NHNE_CdA, 1)
+    hem_mdot = hem_mdot(nitrous_up, chamber_p, NHNE_CdA, 1)
     k = np.sqrt((injector_p - chamber_p) / (nitrous_up_sat.pressure - chamber_p))
-    nhne_mdot = nhne_model(spi_mdot, hem_mdot, k)
+    nhne_mdot = nhne_mdot(spi_mdot, hem_mdot, k)
     return (nhne_mdot, hem_mdot, spi_mdot, nitrous_up.density, nitrous_up_sat.density)
 
 def calc_NHNE_injector_p(mdot, tank_p, vapor_p, chamber_p, CdA):

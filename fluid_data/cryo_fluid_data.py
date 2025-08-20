@@ -8,10 +8,12 @@ system('cls')
 fluids_list = [
     {'name': 'Oxygen', 'fluid_type': FluidsList.Oxygen},
     {'name': 'Nitrogen', 'fluid_type': FluidsList.Nitrogen},
-    {'name': 'Propane', 'fluid_type': FluidsList.nPropane}, 
+    {'name': 'Propane', 'fluid_type': FluidsList.nPropane},
+    # {'name': 'Ethane', 'fluid_type': FluidsList.Ethane},
     {'name': 'Methane', 'fluid_type': FluidsList.Methane},  
     {'name': 'Hydrogen', 'fluid_type': FluidsList.Hydrogen},
-    {'name': 'Helium', 'fluid_type': FluidsList.Helium},
+    {'name': 'Argon', 'fluid_type': FluidsList.Argon}
+    # {'name': 'Helium', 'fluid_type': FluidsList.Helium},
 ]
 
 # Initialize fluids
@@ -24,22 +26,24 @@ for fluid in fluids_list:
         'conductivity': None,
         'compressibility': None,
         'vapor_pressure': None,
+        'sound_speed': None,
         }
 
-P = np.concatenate([np.array([1, 2])]) * 1e5 #, np.linspace(10, 100, 10)]) * 1e5  # Pressure range
+P = np.concatenate([np.array([1, 2]), np.linspace(10, 100, 10)]) * 1e5  # Pressure range
 
 # Calculate density data for each fluid
 for name, fluid_info in fluids.items():
     fluid = fluid_info['fluid']
     
-    # T_fluid = np.linspace(fluid.min_temperature+1.1, 500-273.15, 500)
-    T_fluid = np.arange(250, 351, 1) - 273.15
+    T_fluid = np.arange(fluid.min_temperature+1.1, 301-273.15, 0.1)
+    # T_fluid = np.arange(250, 351, 1) - 273.15
     
     # Initialize arrays for all properties
     fluid_info['density'] = np.zeros((len(P), len(T_fluid)))
     fluid_info['specific_heat'] = np.zeros((len(P), len(T_fluid)))
     fluid_info['conductivity'] = np.zeros((len(P), len(T_fluid)))
     fluid_info['compressibility'] = np.zeros((len(P), len(T_fluid)))
+    fluid_info['sound_speed'] = np.zeros((len(P), len(T_fluid)))
     fluid_info['vapor_pressure'] = np.zeros(len(T_fluid))
     fluid_info['temp_range'] = T_fluid
     
@@ -51,6 +55,7 @@ for name, fluid_info in fluids.items():
             fluid_info['specific_heat'][j, i] = fluid.specific_heat
             fluid_info['conductivity'][j, i] = fluid.conductivity
             fluid_info['compressibility'][j, i] = fluid.compressibility
+            fluid_info['sound_speed'][j, i] = fluid.sound_speed
             if temp < fluid.critical_temperature:
                 fluid.update(Input.temperature(temp), Input.quality(0))
                 fluid_info['vapor_pressure'][i] = fluid.pressure / 1e5
@@ -58,9 +63,7 @@ for name, fluid_info in fluids.items():
                 fluid_info['vapor_pressure'][i] = None
 
 # storage_pressure = 1e5 # atmospheric pressure
-storage_pressure = 1e5 # 5 bar(g)
-
-
+storage_pressure = 1.01325e5 # 5 bar(g)
 
 # Print critical point and storage properties
 print("Critical Point Properties:")
@@ -115,6 +118,7 @@ def plot_properties_2d(fluids, P, property_name, ylabel, title_suffix):
             ax.plot(temp_range, property_data[i], 
                     label=f'{pressure/1e5:.1f} bar(a)', color=colors[i])
         
+
         ax.set_xlabel('Temperature (K)')
         ax.set_ylabel(ylabel)
         ax.set_title(f'{name} {title_suffix}')
@@ -191,9 +195,10 @@ def plot_properties_1d(fluids, property_name, ylabel, title_suffix):
     return fig
 
 density_fig = plot_properties_2d(fluids, P, 'density', 'Density (kg/m³)', 'Density vs Temperature')
-specific_heat_fig = plot_properties_2d(fluids, P, 'specific_heat', 'Specific Heat (J/kg·K)', 'Specific Heat vs Temperature')
-conductivity_fig = plot_properties_2d(fluids, P, 'conductivity', 'Thermal Conductivity (W/m·K)', 'Thermal Conductivity vs Temperature')
-compressibility_fig = plot_properties_2d(fluids, P, 'compressibility', 'Compressibility Factor', 'Compressibility vs Temperature')
+# specific_heat_fig = plot_properties_2d(fluids, P, 'specific_heat', 'Specific Heat (J/kg·K)', 'Specific Heat vs Temperature')
+# conductivity_fig = plot_properties_2d(fluids, P, 'conductivity', 'Thermal Conductivity (W/m·K)', 'Thermal Conductivity vs Temperature')
+# compressibility_fig = plot_properties_2d(fluids, P, 'compressibility', 'Compressibility Factor', 'Compressibility vs Temperature')
+# sound_speed_fig = plot_properties_2d(fluids, P, 'sound_speed', 'Speed of Sound (m/s)', 'Speed of Sound vs Temperature')
 # vapor_pressure_fig = plot_properties_1d(fluids, 'vapor_pressure', 'Vapor Pressure (Bar)', 'Vapor Pressure vs Temperature')
 
 plt.show()

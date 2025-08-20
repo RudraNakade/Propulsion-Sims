@@ -2,7 +2,7 @@ import numpy as np
 from pyfluids import Fluid, FluidsList, Input
 import matplotlib.pyplot as plt
 from os import system
-from two_phase_models import *
+from flow_models import *
 
 system("cls")
 
@@ -44,11 +44,11 @@ injector_vapor_p = nitrous.pressure
 injector_sat_density = nitrous.density
 
 # Calculate mass flow rates
-mdot_spi = spi_model(injector_p, chamber_p, nitrous_injector.density, A_nhne, Cd)
-mdot_hem = hem_model(nitrous_injector, chamber_p, A_nhne, Cd)
+mdot_spi = spi_mdot(injector_p, chamber_p, nitrous_injector.density, A_nhne, Cd)
+mdot_hem = hem_mdot(nitrous_injector, chamber_p, A_nhne, Cd)
 k = np.sqrt((injector_p - chamber_p) / (injector_vapor_p - chamber_p))
 
-mdot_nhne = nhne_model(mdot_spi, mdot_hem, k)
+mdot_nhne = nhne_mdot(mdot_spi, mdot_hem, k)
 
 print(f"Tank: p: {nitrous_tank.pressure/1e5:.2f} Bar, vp: {tank_vapor_p/1e5:.2f} Bar, T: {nitrous_tank.temperature:.2f} deg C, fill T: {fill_temp:.2f} deg C, phase: {nitrous_tank.phase}")
 
@@ -92,10 +92,10 @@ for i, inj_p in enumerate(injector_p_arr):
     nitrous.update(Input.temperature(injector_T_arr[i]), Input.quality(100))
     injector_sat_density_arr_V[i] = nitrous.density
 
-    mdot_spi_arr[i] = spi_model(inj_p, chamber_p, nitrous_injector.density, A_nhne, Cd)
-    mdot_hem_arr[i] = hem_model(nitrous_injector, chamber_p, A_nhne, Cd)
+    mdot_spi_arr[i] = spi_mdot(inj_p, chamber_p, nitrous_injector.density, A_nhne, Cd)
+    mdot_hem_arr[i] = hem_mdot(nitrous_injector, chamber_p, A_nhne, Cd)
     k_arr[i] = np.sqrt((inj_p - chamber_p) / (injector_vapor_p_arr[i] - chamber_p))
-    mdot_nhne_arr[i] = nhne_model(mdot_spi_arr[i], mdot_hem_arr[i], k_arr[i])
+    mdot_nhne_arr[i] = nhne_mdot(mdot_spi_arr[i], mdot_hem_arr[i], k_arr[i])
 
 
 # Plotting the results in subplots

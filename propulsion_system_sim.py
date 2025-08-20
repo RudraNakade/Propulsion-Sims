@@ -1,14 +1,11 @@
 from typing import List, Optional
 from scipy.optimize import root_scalar, fsolve
-from pyfluids import Fluid, FluidsList, Input
+from pyfluids import Fluid, Input
 from thermo.chemical import Chemical
 import numpy as np
-import unit_conversion as uc
+import unit_converter as uc
 import enginesim as es
-from os import system
 import time
-
-system('cls')
 
 def colebrook(f: float, Re: float, rel_roughness: float) -> float:
     """
@@ -61,33 +58,36 @@ class pipe(feed_system_component):
         super().__init__(name)
         self.id = id  # m
         self.L = L  # m
-        self.abs_roughness = abs_roughness  # m
+        self.abs_roughness = abs_roughness # m
+        self.rel_roughness = abs_roughness / id
         self.area = 0.25 * np.pi * id ** 2
         self._velocity = None  # m/s
     
     def re(self, fluid: 'base_fluid_class', mdot: float) -> float:
         """Calculate Reynolds number"""
-        rho = fluid.density(pressure=self.inlet_pressure)
-        visc = fluid.viscosity(pressure=self.inlet_pressure)
+        rho = fluid.density()#pressure = self.inlet_pressure)
+        visc = fluid.viscosity()#pressure = self.inlet_pressure)
         u = self.velocity(mdot, rho)
         return rho * u * self.id / visc
 
     def friction_factor(self, fluid: 'base_fluid_class', mdot: float) -> float:
         """Calculate Darcy friction factor using Colebrook equation approximation"""
         Re = self.re(fluid, mdot)
-        rel_roughness = self.abs_roughness / self.id
         
-        is_laminar = Re < 3000
+        is_laminar = Re < 4000
 
         if is_laminar:
             return 64 / Re
         else:  # Turbulent flow - colebrook equation
-            return root_scalar(colebrook, args=(Re, rel_roughness), bracket=[0.00001, 1]).root
+            # f = root_scalar(colebrook, args=(Re, self.rel_roughness), bracket=[0.00001, 1]).root # Colebrook solver
+            # f = 1.325 / (np.log((self.rel_roughness / 3.7) + (5.74 / Re ** 0.9))) ** 2  # Swamee-Jain
+            f = (-1.8 * np.log10((self.rel_roughness/3.7)**1.11 + (6.9 / Re))) ** -2 # Haaland
+            return f
     
     def dp(self, fluid: 'base_fluid_class', mdot: float) -> float:
         """Calculate pressure drop using Darcy-Weisbach equation"""
         f = self.friction_factor(fluid, mdot)
-        rho = fluid.density(pressure=self.inlet_pressure)
+        rho = fluid.density()#pressure = self.inlet_pressure)
         velocity = self.velocity(mdot, rho)
         return f * (self.L / self.id) * (rho * velocity ** 2) * 0.5
 
@@ -103,48 +103,63 @@ class orifice(feed_system_component):
     ----------
     CdA : float, optional
         Discharge coefficient * Area (m²)
-    Cv : float, optional
-        Flow coefficient in US units (GPM at 1 psi drop)
-    Kv : float, optional
-        Flow coefficient in metric units (m³/h at 1 bar drop)
     name : str, optional
         Name of the orifice, by default "Orifice"
-    
-    Note: Only one of CdA, Cv, or Kv should be provided
     """
-    def __init__(self, CdA: float = None, Cv: float = None, Kv: float = None, name: str = "Orifice"):
+    def __init__(self, CdA: float, name: str = "Orifice"):
         super().__init__(name)
+        self.CdA = CdA
         
-        # Check that only one parameter is provided
-        params_provided = sum(x is not None for x in [CdA, Cv, Kv])
-        if params_provided != 1:
-            raise ValueError("Exactly one of CdA, Cv, or Kv must be provided")
-        
-        if CdA is not None:
-            self.CdA = CdA  # m²
-        elif Cv is not None:
-            self.CdA = Cv / 29.84 * 6.309e-5  # Convert to m²
-        elif Kv is not None:
-            self.CdA = Kv / 36 * 2.778e-4  # Convert to m²
-    
     def dp(self, fluid: 'base_fluid_class', mdot: float) -> float:
         """Calculate pressure drop using orifice equation"""
-        rho = fluid.density(pressure=self.inlet_pressure)
+        rho = fluid.density()#pressure = self.inlet_pressure)
         # ΔP = (ṁ / (Cd * A))² / (2 * ρ)
         return (mdot / self.CdA) ** 2 / (2 * rho)
+
+class diameter_change(feed_system_component):
+    def __init__(self, Cd: float, D: float, D_up: float, name: str = "Orifice (Diameter Change)"):
+        super().__init__(name)
+        self.Cd = Cd
+        self.D = D
+        self.D_up = D_up
+        self.A = 0.25 * np.pi * D ** 2
+        self.A_up = 0.25 * np.pi * D_up ** 2
+        self.beta = D / D_up
+
+    def dp(self, fluid: 'base_fluid_class', mdot: float) -> float:
+        """Calculate pressure drop using orifice equation"""
+        rho = fluid.density()#pressure = self.inlet_pressure)
+        # ΔP = (ṁ / (Cd * A))² / (2 * ρ)
+        return (((np.sqrt(1 - self.beta**4) * mdot) / (self.Cd * self.A))**2) / (2 * rho)
+
+# Regulator
+class regulator(feed_system_component):
+    def __init__(self, open_CdA: float, opening_dP_range: float, name: str = "Regulator"):
+        super().__init__(name)
+        self.open_CdA = open_CdA
+        self.opening_const = open_CdA / opening_dP_range # CdA per unit dP
 
 # Valve types
 class valve(feed_system_component):
     """Base valve component with variable CdA"""
-    
-    def __init__(self, open_CdA: float, name: str = "Valve"):
+
+    def __init__(self, open_CdA: float, name: str, max_rate: float):
         super().__init__(name)
         self.open_CdA = open_CdA  # m²
         self.position = 1.0  # Fully open by default
-    
+        self.max_rate = max_rate
+
     def set_position(self, position: float) -> None:
         """Set valve position (0 = closed, 1 = fully open)"""
         self.position = np.clip(position, 0, 1)
+    
+    def get_position(self) -> float:
+        """Get current valve position"""
+        return self.position
+    
+    def get_max_rate(self) -> float:
+        """Get maximum rate of change for valve position"""
+        return self.max_rate
     
     def get_flow_coeff(self, position: float) -> float:
         """Get flow multiplier based on valve position - to be overridden by subclasses"""
@@ -161,23 +176,23 @@ class valve(feed_system_component):
         if effective_CdA <= 0:
             return float('inf')  # Closed valve = infinite pressure drop
 
-        rho = fluid.density(pressure=self.inlet_pressure)
+        rho = fluid.density()#pressure=self.inlet_pressure)
         return (mdot / effective_CdA) ** 2 / (2 * rho)
 
 class ball_valve(valve):    
-    def __init__(self, open_CdA: float, name: str = "Ball Valve"):
-        super().__init__(open_CdA, name)
-    
+    def __init__(self, open_CdA: float, name: str = "Ball Valve", max_rate: float = 10):
+        super().__init__(open_CdA, name, max_rate)
+
     def get_flow_coeff(self, position: float) -> float:
-        flow_arr = [0, 3, 5, 9, 15, 23, 35, 58, 77, 90] / 90
-        pos_arr  = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90] / 90
+        flow_arr = np.array([0, 3, 5, 9, 15, 23, 35, 58, 77, 90]) / 90
+        pos_arr  = np.array([0, 10, 20, 30, 40, 50, 60, 70, 80, 90]) / 90
 
         return np.interp(position, pos_arr, flow_arr)
 
 class needle_valve(valve):
-    def __init__(self, open_CdA: float, name: str = "Needle Valve"):
-        super().__init__(open_CdA, name)
-    
+    def __init__(self, open_CdA: float, max_rate: float = 5, name: str = "Needle Valve"):
+        super().__init__(open_CdA, name, max_rate)
+
     def get_flow_coeff(self, position: float) -> float:
         return position
 
@@ -195,14 +210,6 @@ class base_fluid_class:
     def viscosity(self, temperature: float = None, pressure: float = None) -> float:
         """Get fluid viscosity at given conditions"""
         raise NotImplementedError
-    
-    def get_properties(self, temperature: float = None, pressure: float = None) -> dict:
-        """Get all fluid properties at given conditions"""
-        return {
-            'density': self.density(temperature, pressure),
-            'viscosity': self.viscosity(temperature, pressure),
-            'name': self.name
-        }
 
 class incompressible_fluid(base_fluid_class):
     """Incompressible fluid with constant properties"""
@@ -238,7 +245,7 @@ class pyfluid(base_fluid_class):
         if pressure is not None:
             self._pressure = pressure
         if temperature is not None or pressure is not None:
-            self.fluid.update(Input.temperature(uc.K2degC(self._temperature)), Input.pressure(self._pressure))
+            self.fluid.update(Input.temperature(uc.K_to_degC(self._temperature)), Input.pressure(self._pressure))
     
     def density(self, temperature: float = None, pressure: float = None) -> float:
         """Get fluid density at current or specified conditions"""
@@ -269,8 +276,8 @@ class thermo_fluid(base_fluid_class):
     
     def density(self, temperature: float = None, pressure: float = None) -> float:
         """Get fluid density at current or specified conditions"""
-        # if temperature is not None or pressure is not None:
-        #     self.update_state(temperature, pressure)
+        if temperature is not None or pressure is not None:
+            self.update_state(temperature, pressure)
         return self.chemical.rho
     
     def viscosity(self, temperature: float = None, pressure: float = None) -> float:
@@ -278,6 +285,12 @@ class thermo_fluid(base_fluid_class):
         if temperature is not None or pressure is not None:
             self.update_state(temperature, pressure)
         return self.chemical.mu
+
+    def vapor_pressure(self, temperature: float = None, pressure: float = None) -> float:
+        """Get fluid vapor pressure at current or specified conditions"""
+        if temperature is not None or pressure is not None:
+            self.update_state(temperature, pressure)
+        return self.chemical.Psat
 
 # Feed system
 class feed_system:
@@ -297,20 +310,34 @@ class feed_system:
     def set_fluid(self, fluid: base_fluid_class):
         """Set the fluid properties"""
         self.fluid = fluid
-    
-    def calc_total_dp(self, mdot: float) -> float:
+
+    def calc_total_dp(self, mdot: float = None) -> float:
         """Calculate total pressure drop for given mass flow rate"""
         if not self.fluid:
             raise ValueError("Fluid must be set before solving")
         
+        if mdot is None:
+            mdot = self._mdot
+        
         total_dp = 0
 
+        current_pressure = self._inlet_pressure
         for component in self.line:
             dp = component.dp(self.fluid, mdot)
             total_dp += dp
-        
+            component.inlet_pressure = current_pressure
+            current_pressure -= dp
+            component.outlet_pressure = current_pressure
+
+            if current_pressure < 0:
+                print("Warning: Negative pressure encountered")
+                return np.inf
+
         return total_dp
-    
+
+    def get_total_dp(self) -> float:
+        return self._total_dp
+
     def get_mdot(self) -> Optional[float]:
         """Get the current mass flow rate"""
         if self._mdot is None:
@@ -322,7 +349,7 @@ class feed_system:
             raise ValueError("Mass flow rate must be positive")
         self._mdot = mdot
 
-    def solve_pressures(self, inlet_pressure: float = None, mdot: float = None, outlet_pressure: float = None) -> None:
+    def solve_pressures(self, inlet_pressure: float = None, mdot: float = None) -> None:
         """
         Solve for pressure at each point given inlet pressure and mass flow rate,
         or outlet pressure and mass flow rate.
@@ -331,48 +358,33 @@ class feed_system:
         """
         if not self.fluid:
             raise ValueError("Fluid must be set before solving")
-        if (inlet_pressure is None and outlet_pressure is None) or (inlet_pressure is not None and outlet_pressure is not None):
-            raise ValueError("Specify exactly one of inlet_pressure or outlet_pressure")
 
         # Store the mass flow rate
-        self._mdot = mdot
-        
-        # Calculate total pressure drop
-        total_dp = self.calc_total_dp(mdot)
+        if mdot is not None:
+            self._mdot = mdot
+
+        # print(f"Feed system: {self.name} - Solving pressures with inlet pressure: {self._inlet_pressure/1e5:.3f}, mass flow rate: {self._mdot:.3f}")
 
         if inlet_pressure is not None:
-            current_pressure = inlet_pressure
-            for i, component in enumerate(self.line):
-                dp = component.dp(self.fluid, mdot)
-                component.inlet_pressure = current_pressure
-                current_pressure -= dp
-                component.outlet_pressure = current_pressure
-                if current_pressure < 0:
-                    raise ValueError(f"Negative pressure encountered in feed system component {i}: '{component.name}'.")
-        else:
-            # outlet_pressure is specified, solve for inlet_pressure
-            inlet_pressure = outlet_pressure + total_dp
-            current_pressure = inlet_pressure
-            for i, component in enumerate(self.line):
-                dp = component.dp(self.fluid, mdot)
-                component.inlet_pressure = current_pressure
-                current_pressure -= dp
-                component.outlet_pressure = current_pressure
-                if current_pressure < 0:
-                    raise ValueError(f"Negative pressure encountered in feed system component {i}: '{component.name}'.")
+            self._inlet_pressure = inlet_pressure
+
+        self._total_dp = self.calc_total_dp(self._mdot)
 
     def solve_mdot(self, inlet_pressure: float, outlet_pressure: float) -> float:
         """Solve for mass flow rate given inlet and outlet pressures"""
         if not self.fluid:
             raise ValueError("Fluid must be set before solving")
-        
+
+        self._inlet_pressure = inlet_pressure
+
         target_dp = inlet_pressure - outlet_pressure
         
         def dp_func(mdot):
             return self.calc_total_dp(mdot) - target_dp
         
         # Solve for mdot
-        mdot = root_scalar(dp_func, bracket=[1e-5, 100], method='brentq').root
+        tol = 1e-4
+        mdot = root_scalar(dp_func, bracket=[1e-5, 100], method='brentq', xtol=tol).root
         
         # Store and update pressures
         self._mdot = mdot
@@ -384,8 +396,8 @@ class feed_system:
         """Print pressures at each component"""
         if self._mdot is None:
             raise ValueError("Mass flow rate not set. Run solve_pressures() or solve_mdot() first.")
-            
-        print(self.name + " - Component Pressures:")
+
+        print(f"{self.name} - Component Pressures:")
         print("-" * 50)
         total_dp = self.line[0].inlet_pressure - self.line[-1].outlet_pressure
         for i, component in enumerate(self.line, 1):
@@ -396,10 +408,13 @@ class feed_system:
                 print(f"   {'Outlet Pressure':<18}: {component.outlet_pressure/1e5:<6.3f} Bar")
                 print(f"   {'Pressure Drop':<18}: {pressure_drop/1e5:<6.3f} Bar")
                 if isinstance(component, pipe):
-                    print(f"   {'Velocity':<18}: {component.velocity(self._mdot, self.fluid.density()):<6.3f} m/s")
+                    print(f"\n   {'Velocity':<18}: {component.velocity(self._mdot, self.fluid.density()):<6.3f} m/s")
+                    print(f"   {'Friction Factor':<18}: {component.friction_factor(self.fluid, self._mdot):<6.4f}")
+                    print(f"   {'Re':<18}: {component.re(self.fluid, self._mdot):<6.3e}")
             if i < len(self.line):
                 print("")
-        print(f"\nTotal Pressure Drop: {total_dp/1e5:.3f} Bar")
+        print(f"\nMass Flow Rate: {self._mdot:.4f} kg/s")
+        print(f"Total Pressure Drop: {total_dp/1e5:.3f} Bar")
         print("-" * 50 + "\n")
 
     def print_components(self, show_parameters: bool = True) -> None:
@@ -418,9 +433,9 @@ class feed_system:
                     print(f"   {'CdA':<18}: {component.CdA*1e6:<6.3f} mm²")
 
                 elif isinstance(component, valve):
-                    print(f"   {'Open CdA':<18}: {component.open_CdA*1e6:<6.3f} mm²")
+                    print(f"   {'Fully Open CdA':<18}: {component.open_CdA*1e6:<6.3f} mm²")
+                    print(f"   {'Current CdA':<18}: {component.get_effective_CdA()*1e6:<6.3f} mm²")
                     print(f"   {'Position':<18}: {component.position:.2f} (0 = closed, 1 = fully open)")
-                    print(f"   {'Effective CdA':<18}: {component.get_effective_CdA()*1e6:<6.3f} mm²")
 
                 if i < len(self.line):
                     print("")
@@ -433,12 +448,13 @@ class feed_system:
 # Engine
 class engine:
     """Engine class to store engine properties and functions"""
-    def __init__(self, file: str, name: str = "Rocket Engine", pamb: float = 1.01325, cstar_eff: float = 1):
+    def __init__(self, file: str, name: str = "Rocket Engine", pamb: float = 101325, cstar_eff: float = 1, cf_eff: float = 1):
         self.name = name
         self.file = file
         self.es_engine = es.engine(self.file)
-        self.cstar_eff = cstar_eff
         self.pamb = pamb
+        self.cstar_eff = cstar_eff
+        self.cf_eff = cf_eff
 
     def set_props(self, fuel: str, ox: str) -> None:
         """Set engine propellants"""
@@ -452,7 +468,7 @@ class engine:
             ox_mdot=ox_mdot,
             full_sim=False
         )
-        return self.es_engine.pc * 1e5 # Pa
+        return self.es_engine.pc
 
     def mdot_combustion_sim(self, fuel_mdot: float, ox_mdot: float, full_sim: bool = True) -> None:
         self.es_engine.mdot_combustion_sim(
@@ -462,6 +478,7 @@ class engine:
             ox_mdot=ox_mdot,
             pamb=self.pamb,
             cstar_eff=self.cstar_eff,
+            cf_eff=self.cf_eff,
             full_sim=full_sim
         )
 
@@ -471,10 +488,11 @@ class engine:
         self.es_engine.combustion_sim(
             fuel=self.fuel,
             ox=self.ox,
-            pc=self._pc / 1e5,  # Convert to bar
+            pc=self._pc,
             OF=self._OF,
             pamb=self.pamb,
             cstar_eff=self.cstar_eff,
+            cf_eff=self.cf_eff,
             simplified=True
         )
         self._pc = pc
@@ -484,12 +502,8 @@ class engine:
         self.isp = self.es_engine.isp
         self.cstar = self.es_engine.cstar
 
-    def initialise(self) -> None:
-        """Initialise engine parameters"""
-        self.es_engine.initialise()
-
     def pc_of_mdot_calc(self, pc: float, OF: float) -> tuple:
-        return self.es_engine.pc_of_mdot_calc(self.fuel, self.ox, pc/1e5, OF, cstar_eff=self.cstar_eff)
+        return self.es_engine.pc_of_mdot_calc(self.fuel, self.ox, pc, OF, cstar_eff=self.cstar_eff)
 
     def print_data(self) -> None:
         self.es_engine.print_data()
@@ -504,7 +518,7 @@ class engine:
             self._OF = OF
 
 # Coupled system
-class coupled_feed_system:
+class propulsion_system:
     """Container for coupled fuel and oxidizer feed systems"""
     def __init__(self, fuel_system: feed_system, ox_system: feed_system, engine: engine):
         self.fuel_system = fuel_system
@@ -512,24 +526,39 @@ class coupled_feed_system:
         self.engine = engine
         self.engine.set_props(fuel_system.fluid.cea_name, ox_system.fluid.cea_name)
     
-    def solve(self) -> None:
+    def solve(self, print_results = False) -> None:
         """Solve coupled systems and store results"""
         [fuel_mdot, ox_mdot] = solve_coupled_system(
             self.fuel_system,
             self.ox_system,
             self.engine,
         )
+        # print(f"Calculated mass flow rates: Fuel = {fuel_mdot:.6f} kg/s, Oxidizer = {ox_mdot:.6f} kg/s")
         self.fuel_system.set_mdot(fuel_mdot)
         self.ox_system.set_mdot(ox_mdot)
+        if print_results:
+            self.print_summary()
+        else:
+            self.calc_final_values(False)
 
     def calc_final_values(self, full_engine_sim: bool = True) -> None:
-        self.fuel_system.solve_pressures(inlet_pressure=self.fuel_system._inlet_pressure, mdot=self.fuel_system.get_mdot())
-        self.ox_system.solve_pressures(inlet_pressure=self.ox_system._inlet_pressure, mdot=self.ox_system.get_mdot())
+        engine_pc = self.engine.get_pc()
+
+        self.fuel_system.solve_pressures(mdot=self.fuel_system.get_mdot())
+        self.ox_system.solve_pressures(mdot=self.ox_system.get_mdot())
+
+        # Verify that outlet pressures match engine pc
+        fuel_residual = self.fuel_system.line[-1].outlet_pressure - engine_pc
+        ox_residual = self.ox_system.line[-1].outlet_pressure - engine_pc
+
+        residual_tol = 1
+        if np.max(np.abs([fuel_residual, ox_residual])) > residual_tol:
+            raise ValueError(f"Solver did not converge: fuel residual = {fuel_residual:.4f}, ox residual = {ox_residual:.4f}")
 
         self.engine.mdot_combustion_sim(self.fuel_system.get_mdot(), self.ox_system.get_mdot(), full_sim=full_engine_sim)
 
-    def print_summary(self, full_engine_sim: bool = True) -> None:
-        self.calc_final_values(full_engine_sim=full_engine_sim)
+    def print_summary(self) -> None:
+        self.calc_final_values(True)
 
         print("=" * 60)
         print(f"COUPLED FEED SYSTEM ANALYSIS")
@@ -541,9 +570,9 @@ class coupled_feed_system:
         self.ox_system.print_pressures() 
         self.ox_system.print_components()
         
-        if full_engine_sim:
-            print(f"ENGINE PERFORMANCE:")
-            self.engine.print_data()
+        # if full_engine_sim:
+        print(f"ENGINE PERFORMANCE:")
+        self.engine.print_data()
 
         print("=" * 60)
 
@@ -555,150 +584,34 @@ def solve_coupled_system(fuel_system: feed_system, ox_system: feed_system, engin
     fuel_mdot = fuel_system.get_mdot()
     ox_mdot = ox_system.get_mdot()
     total_mdot = fuel_mdot + ox_mdot
-    OF = ox_mdot / fuel_mdot
-    cstar = 1000
-    pc = cstar * total_mdot / engine.es_engine.at
+    OF_guess = ox_mdot / fuel_mdot
+    cstar = 800
+    pc_guess = cstar * total_mdot / engine.es_engine.at
 
-    initial_guess = [pc, OF]  # Initial guess for pressure and OF
-    # print(f"Initial guess: pc = {pc/1e5:.2f} Bar, OF = {OF:.2f}")
+    initial_guess = [pc_guess, OF_guess]  # Initial guess for pressure and OF
+    print(f"Initial guess: pc = {pc_guess/1e5:.2f} Bar, OF = {OF_guess:.2f}, ox_mdot = {ox_mdot:.6f} kg/s, fuel_mdot = {fuel_mdot:.6f} kg/s")
 
     def system_equations(pc_OF):
         pc, OF = pc_OF
 
         [fuel_mdot, ox_mdot] = engine.pc_of_mdot_calc(pc, OF)
+        fuel_system.solve_pressures(mdot=fuel_mdot)
+        ox_system.solve_pressures(mdot=ox_mdot)
 
-        fuel_feed_residual = fuel_system.calc_total_dp(fuel_mdot) - (fuel_system._inlet_pressure - pc)
-        ox_feed_residual = ox_system.calc_total_dp(ox_mdot) - (ox_system._inlet_pressure - pc)
+        fuel_feed_residual = fuel_system.get_total_dp() - (fuel_system._inlet_pressure - pc)
+        ox_feed_residual = ox_system.get_total_dp() - (ox_system._inlet_pressure - pc)
 
+        # print(f"""Solver iteration: pc = {pc/1e5:.6f} Bar, OF = {OF:.6f}
+        #       fuel residual: {fuel_feed_residual:.4f}
+        #       ox residual: {ox_feed_residual:.4f}\n""")
+        
         return fuel_feed_residual, ox_feed_residual
 
-    tol = 1e-5
+    tol = 1e-7
+    t = time.time()
     sol = fsolve(system_equations, initial_guess, xtol=tol, full_output=False)
-
-    residual_tol = 1e2
-    fuel_residual, ox_residual = system_equations(sol)
-    if np.max(np.abs([fuel_residual, ox_residual])) > residual_tol:
-        raise ValueError(f"Solver did not converge: fuel residual = {fuel_residual:.4f}, ox residual = {ox_residual:.4f}")
+    print(f"Solver converged in {(time.time() - t)*1e3:.2f} ms")
 
     pc, OF = sol
-    engine.set_pc_of(pc, OF)
     engine.simple_combustion_sim(pc, OF)
     return engine.pc_of_mdot_calc(pc, OF)
-
-if __name__ == "__main__":
-    # Define fluids
-    n2o = thermo_fluid(Chemical("nitrous oxide"), temperature = 273, pressure = 40e5, name = "N2O", cea_name = "N2O") # Cold nitrous
-    lox = pyfluid(Fluid(FluidsList.Oxygen), temperature = 110, pressure = 40e5, name = "LOX", cea_name = "LOX")
-    ipa = thermo_fluid(Chemical("isopropanol"), temperature = 290, pressure = 40e5, name = "IPA", cea_name = "Isopropanol")
-    ethanol = pyfluid(Fluid(FluidsList.Ethanol), temperature = 290, pressure = 40e5, name = "Ethanol", cea_name = "Ethanol")
-    methanol = pyfluid(Fluid(FluidsList.Methanol), temperature = 290, pressure = 40e5, name = "Methanol", cea_name = "Methanol")
-    propane = pyfluid(Fluid(FluidsList.nPropane), temperature = 273, pressure = 40e5, name = "Propane", cea_name = "Propane")
-
-    fuel_tank_p = 50e5  # Pa
-    ox_tank_p = 50e5  # Pa
-
-    fuel_feed = feed_system(fuel_tank_p, "Fuel Feed System")
-    ox_feed = feed_system(ox_tank_p, "Ox Feed System")
-
-    pipe_id_1_2 = uc.in2m(0.5 - 2*0.036)
-    pipe_id_3_8 = uc.in2m(0.375 - 2*0.036)
-    abs_roughness = 0.015e-3  # m
-
-    fuel_pipes = pipe(id = pipe_id_3_8, L=0.5, abs_roughness = abs_roughness, name = "Feed System Pipes")
-    fuel_valve = needle_valve(open_CdA = uc.Cv2CdA(1.8), name = '1/2" Needle Valve')
-    regen_channels = orifice(CdA = 24.4e-6, name = "Regen Channels")
-    fuel_injector = orifice(CdA = 17.4e-6, name = "Fuel Injector") # Measured
-    fuel_feed.add_component(fuel_pipes, fuel_valve, regen_channels, fuel_injector)
-
-    fuel_feed.set_fluid(ipa)
-    # fuel_feed.set_fluid(ethanol)
-
-    ox_pipes = pipe(id = pipe_id_1_2, L=1.5, abs_roughness = abs_roughness, name = "Feed System Pipes")
-    ox_valve = needle_valve(open_CdA = uc.Cv2CdA(2.4), name = '3/4" Needle Valve')
-    ox_injector = orifice(CdA = 78e-6, name = "N2O Injector")
-    ox_feed.add_component(ox_pipes, ox_valve, ox_injector)
-
-    ox_feed.set_fluid(n2o)
-    # ox_feed.set_fluid(lox)
-    
-    engine = engine("configs/l9.cfg")
-    
-    coupled_system = coupled_feed_system(fuel_feed, ox_feed, engine)
-    
-    # t = time.time()
-    # coupled_system.solve()
-    # print(f"Solved coupled systems in {1e3*(time.time() - t):.2f} ms")
-    # coupled_system.print_summary()
-
-    valve_positions = np.arange(0.1, 1.01, 0.01)
-    ox_mdot = np.zeros_like(valve_positions)
-    fuel_mdot = np.zeros_like(valve_positions)
-    pc = np.zeros_like(valve_positions)
-    OF = np.zeros_like(valve_positions)
-    isp = np.zeros_like(valve_positions)
-    thrust = np.zeros_like(valve_positions)
-    cstar = np.zeros_like(valve_positions)
-
-    for i, pos in enumerate(valve_positions):
-        t = time.time()
-        fuel_valve.set_position(pos)
-        ox_valve.set_position(pos)
-        coupled_system.solve()
-        fuel_mdot[i] = fuel_feed.get_mdot()
-        ox_mdot[i] = ox_feed.get_mdot()
-        pc[i] = engine.get_pc()
-        OF[i] = ox_mdot[i] / fuel_mdot[i]
-        isp[i] = engine.isp
-        thrust[i] = engine.thrust
-        cstar[i] = engine.cstar
-        print(f"Iteration {i+1}/{len(valve_positions)} solved in {1e3*(time.time() - t):.2f} ms\n")
-
-    import matplotlib.pyplot as plt
-    plt.figure(figsize=(18, 12))
-    
-    plt.subplot(3, 2, 1)
-    plt.plot(valve_positions, fuel_mdot, label='Fuel')
-    plt.plot(valve_positions, ox_mdot, label='Ox')
-    plt.xlabel('Valve Position')
-    plt.ylabel('Mass Flow Rate (kg/s)')
-    plt.title('Mass Flow Rates vs Valve Position')
-    plt.legend()
-    plt.grid()
-
-    plt.subplot(3, 2, 2)
-    plt.plot(valve_positions, pc / 1e5)
-    plt.xlabel('Valve Position')
-    plt.ylabel('Chamber Pressure (bar)')
-    plt.title('Chamber Pressure vs Valve Position')
-    plt.grid()
-
-    plt.subplot(3, 2, 3)
-    plt.plot(valve_positions, OF)
-    plt.xlabel('Valve Position')
-    plt.ylabel('OF Ratio')
-    plt.title('OF Ratio vs Valve Position')
-    plt.grid()
-
-    plt.subplot(3, 2, 4)
-    plt.plot(valve_positions, isp)
-    plt.xlabel('Valve Position')
-    plt.ylabel('Specific Impulse (s)')
-    plt.title('Specific Impulse vs Valve Position')
-    plt.grid()
-
-    plt.subplot(3, 2, 5)
-    plt.plot(valve_positions, thrust)
-    plt.xlabel('Valve Position')
-    plt.ylabel('Thrust (N)')
-    plt.title('Thrust vs Valve Position')
-    plt.grid()
-
-    plt.subplot(3, 2, 6)
-    plt.plot(valve_positions, cstar)
-    plt.xlabel('Valve Position')
-    plt.ylabel('Characteristic Velocity (m/s)')
-    plt.title('C* vs Valve Position')
-    plt.grid()
-
-    plt.tight_layout()
-    plt.show()

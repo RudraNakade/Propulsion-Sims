@@ -5,7 +5,7 @@ from os import system
 
 system('cls')
 
-engine = es.engine("configs/l9.cfg")
+engine = es.engine("configs/l9.yaml")
 
 fuel = 'Isopropanol'
 ox = 'N2O'
@@ -28,6 +28,7 @@ for i, fuel_mdot in enumerate(fuel_mdot_arr):
         fuel_mdot = fuel_mdot,
         ox_mdot = ox_mdot,
         cstar_eff=0.96,
+        cf_eff=0.905,
         full_sim=False
     )
     pc[i] = engine.pc

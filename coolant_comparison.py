@@ -106,27 +106,28 @@ class IsopropanolProperty(FluidProperty):
             self.vp[i] = self.ipa.Psat
             self.visc[i] = self.ipa.mu
 
-temperatures = np.linspace(270, 450, 100)
-pc = 20e5  # Pressure in Pa
+temperatures = np.linspace(95, 450, 100)
+pc = 100e5  # Pressure in Pa
 pe = 1.01325e5  # Pressure in Pa
 
-ox = "N2O"
+# ox = "N2O"
+ox = "LOX"
 
 # Setup geometrical parameters
 D_h = 2e-3  # hydraulic diameter in m
 
 # Create fluid objects
 fluids = [
-    PyFluidsProperty("Methanol", FluidsList.Methanol, temperatures, "Methanol", ox, pc=pc, pe=pe),
-    PyFluidsProperty("Ethanol", FluidsList.Ethanol, temperatures, "Ethanol", ox, pc=pc, pe=pe),
-    IsopropanolProperty(temperatures, "Isopropanol", ox, pc=pc, pe=pe),
+    # PyFluidsProperty("Methanol", FluidsList.Methanol, temperatures, "Methanol", ox, pc=pc, pe=pe),
+    # PyFluidsProperty("Ethanol", FluidsList.Ethanol, temperatures, "Ethanol", ox, pc=pc, pe=pe),
+    # IsopropanolProperty(temperatures, "Isopropanol", ox, pc=pc, pe=pe),
     PyFluidsProperty("Propane", FluidsList.nPropane, temperatures, "Propane", ox, pc=pc, pe=pe),
-    # PyFluidsProperty("Methane", FluidsList.Methane, temperatures, "CH4", ox, pc=pc, pe=pe),
-    # PyFluidsProperty("LOX cooled - Propane", FluidsList.Oxygen, temperatures, "Propane", "LOX", pc=pc, pe=pe, isox=True),
+    PyFluidsProperty("Methane", FluidsList.Methane, temperatures, "CH4", ox, pc=pc, pe=pe),
+    PyFluidsProperty("LOX cooled - Propane", FluidsList.Oxygen, temperatures, "Propane", "LOX", pc=pc, pe=pe, isox=True),
     # PyFluidsProperty("LOX cooled - Ethanol", FluidsList.Oxygen, temperatures, "Ethanol", "LOX", pc=pc, pe=pe, isox=True),
     # PyFluidsProperty("LOX cooled - Methanol", FluidsList.Oxygen, temperatures, "Methanol", "LOX", pc=pc, pe=pe, isox=True),
     # PyFluidsProperty("LOX cooled - IPA", FluidsList.Oxygen, temperatures, "Isopropanol", "LOX", pc=pc, pe=pe, isox=True),
-    # PyFluidsProperty("LOX cooled - Methane", FluidsList.Oxygen, temperatures, "CH4", "LOX", pc=pc, pe=pe, isox=True),
+    PyFluidsProperty("LOX cooled - Methane", FluidsList.Oxygen, temperatures, "CH4", "LOX", pc=pc, pe=pe, isox=True),
 ]
 
 for fluid in fluids:
