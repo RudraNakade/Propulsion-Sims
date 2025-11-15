@@ -1,76 +1,187 @@
 from propulsion_system_sim import *
+from pyfluids import Fluid, FluidsList
 import unit_converter as uc
 import numpy as np
+import custom_fluids
 from os import system
 
 system('cls')
 
 # Define fluids
-n2o = thermo_fluid(Chemical("nitrous oxide"), temperature = 268, pressure = 40e5, name = "N2O", cea_name = "N2O") # Cold nitrous
-ipa = thermo_fluid(Chemical("isopropanol"), temperature = 290, pressure = 40e5, name = "IPA", cea_name = "Isopropanol")
+n2o = custom_fluids.thermo_fluid("nitrous oxide", temperature = 273.15-8, pressure = 40e5, name = "N2O", cea_name = "N2O") # Cold nitrous
+ipa = custom_fluids.thermo_fluid("isopropanol", temperature = 290, pressure = 40e5, name = "IPA", cea_name = "Isopropanol")
+water = custom_fluids.pyfluid(Fluid(FluidsList.Water), 290, 10e5, "Water", "H2O")
 
-tank_p = 55e5
-tank_outlet_Cd = 0.7
+# tank_p = 50e5
+fitting_Cd = 0.6
 
-fuel_tank_p = tank_p  # Pa
-ox_tank_p = tank_p  # Pa
+fuel_tank_p = 50e5  # Pa
+ox_tank_p_ael = 50e5  # Pa
 
-annulus_id = 17.27e-3
-annulus_od = 18.25e-3
+ox_tank_p_rocket = ox_tank_p_ael + 4.8e5 # Pa
+
+annulus_id = 17.29e-3
+annulus_od = 18.18e-3
 annulus_area = np.pi * (annulus_od**2 - annulus_id**2) * 0.25
 
 film_area = 0.25 * np.pi * (0.4e-3)**2 * 56
 
 fuel_inj_area = annulus_area + film_area
 
-# fuel_inj_Cd = 17.4e-6 / fuel_inj_area
-fuel_inj_Cd = 0.7
+old_annulus_od = 17.96e-3
+old_annulus_area = np.pi * (old_annulus_od**2 - annulus_id**2) * 0.25
+old_film_area = 0.25 * np.pi * (0.4e-3)**2 * 44
+old_fuel_inj_area = old_annulus_area + old_film_area
 
-# fuel_inj_CdA = 17.4e-6  # m²
-# fuel_inj_CdA = 21e-6  # m²
+# fuel_inj_Cd = 17.4e-6 / old_fuel_inj_area
+fuel_inj_Cd = 0.723
+
 fuel_inj_CdA = fuel_inj_area * fuel_inj_Cd  # m²
-print(f"Fuel Injector CdA: {fuel_inj_CdA * 1e6:.3f} mm²")
+print(f"Fuel Injector CdA: {fuel_inj_CdA * 1e6:.3f} mm², Cd: {fuel_inj_Cd:.3f}")
 
-fuel_feed = feed_system(fuel_tank_p, "Fuel Feed System")
-ox_feed = feed_system(ox_tank_p, "Ox Feed System")
+fuel_feed_ael = feed_system(fuel_tank_p, "Fuel Feed System")
+ox_feed_ael = feed_system(ox_tank_p_ael, "Ox Feed System")
 
 pipe_id_3_4 = uc.in_to_m(0.75 - 2*0.036)
 pipe_id_1_2 = uc.in_to_m(0.5 - 2*0.036)
 pipe_id_3_8 = uc.in_to_m(0.375 - 2*0.036)
 pipe_area_1_2 = np.pi * (pipe_id_1_2 / 2) ** 2
 pipe_area_3_8 = np.pi * (pipe_id_3_8 / 2) ** 2
-pipe_roughness = 0.01e-3 # m
+pipe_roughness = 0.005e-3 # m
 
-fuel_tank_outlet = orifice(CdA = pipe_area_1_2 * tank_outlet_Cd, name = "Fuel Tank Outlet")
-fuel_pipes = pipe(id = pipe_id_1_2, L=2, abs_roughness = pipe_roughness, name = "Fuel Feed System Pipes")
+fuel_pipes_length = 1.5
+ox_pipes_length = 0.5
 
-# fuel_tank_outlet = orifice(CdA = pipe_area_3_8 * tank_outlet_Cd, name = "Fuel Tank Outlet")
-# fuel_pipes = pipe(id = pipe_id_3_8, L=2, abs_roughness = pipe_roughness, name = "Fuel Feed System Pipes")
+fuel_hose_length = 0.8 # m
+ox_hose_length = 1.2 # m
 
-fuel_hose = pipe(id = pipe_id_1_2, L=1, abs_roughness = pipe_roughness, name = "Fuel Feed System Hose")
+fuel_engine_pipe_length = 0.5
+ox_engine_pipe_length = 0.35
+
+# fuel_valve_angle = 60
+# ox_valve_angle = 70
+
+fuel_valve_angle = 90
+ox_valve_angle = 90
+
+fuel_valve_position = (fuel_valve_angle - 22) / (100 - 22)
+ox_valve_position = (ox_valve_angle - 14) / (95 - 14)
+
+fuel_tank_outlet = orifice(CdA = pipe_area_1_2 * fitting_Cd, name = "Fuel Tank Outlet")
+fuel_raceway = pipe(id = pipe_id_1_2, L=fuel_pipes_length, abs_roughness = pipe_roughness, name = "Fuel Feed System Pipes")
+fuel_hose = pipe(id = pipe_id_1_2, L=fuel_hose_length, abs_roughness = pipe_roughness, name = "Fuel Feed System Hose")
 fuel_valve = ball_valve(open_CdA = uc.Cv_to_CdA(12), name = '1/2" Slok Ball Valve')
-fuel_inlet_fitting = diameter_change(Cd = 0.7, D = pipe_id_3_8, D_up = pipe_id_1_2, name = "Fuel Inlet Fitting")
-regen_channels = orifice(CdA = 24.4e-6, name = "Regen Channels")
-fuel_injector = orifice(CdA = fuel_inj_CdA, name = "Fuel Injector") # Measured
-fuel_feed.add_component(fuel_tank_outlet, fuel_pipes, fuel_hose, fuel_valve, fuel_inlet_fitting, regen_channels, fuel_injector)
+fuel_engine_pipes_ael = pipe(id = pipe_id_1_2, L=fuel_engine_pipe_length, abs_roughness = pipe_roughness, name = "Engine Feed Pipes")
+fuel_engine_pipes_rocket = pipe(id = pipe_id_1_2, L=0.6, abs_roughness = pipe_roughness, name = "Engine Feed Pipes")
+regen_channels = orifice(CdA = 24.4e-6, name = "Regen Channels") # Measured
+fuel_injector = orifice(CdA = fuel_inj_CdA, name = "Fuel Injector")
+fuel_feed_ael.add_component(fuel_tank_outlet, fuel_raceway, fuel_hose, fuel_valve, fuel_engine_pipes_ael, regen_channels, fuel_injector)
 
-fuel_feed.set_fluid(ipa)
+fuel_feed_ael.set_fluid(ipa)
+# fuel_feed.set_fluid(water)
 
-ox_tank_outlet = orifice(CdA = pipe_area_1_2 * tank_outlet_Cd, name = "Ox Tank Outlet")
-ox_pipes = pipe(id = pipe_id_1_2, L=0.5, abs_roughness = pipe_roughness, name = "Ox Feed System Pipes")
-ox_hose = pipe(id = pipe_id_3_4, L=1, abs_roughness = pipe_roughness, name = "Ox Feed System Hose")
+ox_tank_outlet = orifice(CdA = pipe_area_1_2 * fitting_Cd, name = "Ox Tank Outlet")
+ox_pipes_ael = pipe(id = pipe_id_1_2, L=ox_pipes_length, abs_roughness = pipe_roughness, name = "Ox Feed System Pipes")
+ox_pipes_rocket = pipe(id = pipe_id_1_2, L=0.6, abs_roughness = pipe_roughness, name = "Ox Feed System Pipes")
+ox_hose = pipe(id = pipe_id_3_4, L=ox_hose_length, abs_roughness = pipe_roughness, name = "Ox Feed System Hose")
+ox_engine_pipes = pipe(id = pipe_id_1_2, L=ox_engine_pipe_length, abs_roughness = pipe_roughness, name = "Engine Feed Pipes")
 ox_valve = ball_valve(open_CdA = uc.Cv_to_CdA(12), name = '1/2" Slok Ball Valve')
-ox_injector = orifice(CdA = 79e-6, name = "N2O Injector")
-ox_feed.add_component(ox_tank_outlet, ox_pipes, ox_hose, ox_valve, ox_injector)
+ox_injector_liquid = orifice(CdA = 79e-6, name = "N2O Injector")
+ox_injector_two_phase = orifice(CdA = 57e-6, name = "N2O Injector")
+ox_feed_ael.add_component(ox_tank_outlet, ox_pipes_ael, ox_hose, ox_valve, ox_engine_pipes, ox_injector_two_phase)
 
-ox_feed.set_fluid(n2o)
+# ox_feed_CdA = 45e-6
+# ox_feed_orifice = orifice(CdA = ox_feed_CdA, name = "Ox Feed Orifice")
+# ox_feed.add_component(ox_feed_orifice, ox_injector)
 
-ox_valve.set_position(0.65)
+ox_feed_ael.set_fluid(n2o)
+
+def calc_CdA(dp, mdot, rho):
+    """Calculate the required CdA for a given pressure drop and mass flow rate."""
+    return mdot / np.sqrt(2 * rho * dp)
+
+# ox_valve.set_position(ox_valve_position)
+# fuel_valve.set_position(fuel_valve_position)
 
 main_engine = engine("configs/l9.yaml", cstar_eff=0.96, cf_eff=0.905)
 
-coupled_system = propulsion_system(fuel_feed, ox_feed, main_engine)
+coupled_system_ael = propulsion_system(fuel_feed_ael, ox_feed_ael, main_engine)
+coupled_system_ael.solve(True)
 
-coupled_system.solve(True)
+ox_hose_dp_ael = ox_hose.get_inlet_pressure() - ox_hose.get_outlet_pressure()
+ox_engine_pipe_dp_ael = ox_engine_pipes.get_inlet_pressure() - ox_engine_pipes.get_outlet_pressure()
 
-print(f"N2O Vapor Pressure: {n2o.vapor_pressure()/1e5:.2f} Bar")
+fuel_hose_dp_ael = fuel_hose.get_inlet_pressure() - fuel_hose.get_outlet_pressure()
+fuel_engine_pipe_dp_ael = fuel_engine_pipes_ael.get_inlet_pressure() - fuel_engine_pipes_ael.get_outlet_pressure()
+
+ox_system_dP_ael = ox_tank_outlet.inlet_pressure - ox_injector_two_phase.inlet_pressure
+ox_mdot_ael = ox_feed_ael._mdot
+ox_system_CdA_ael = calc_CdA(ox_system_dP_ael, ox_mdot_ael, n2o.density())
+
+fuel_feed_rocket = feed_system(fuel_tank_p, "Rocket Fuel Feed System")
+fuel_feed_rocket.add_component(fuel_tank_outlet, fuel_raceway, fuel_engine_pipes_rocket, fuel_valve, regen_channels, fuel_injector)
+fuel_feed_rocket.set_fluid(ipa)
+
+ox_feed_rocket = feed_system(ox_tank_p_rocket, "Rocket Ox Feed System")
+ox_feed_rocket.add_component(ox_tank_outlet, ox_pipes_rocket, ox_valve, ox_injector_liquid)
+ox_feed_rocket.set_fluid(n2o)
+
+coupled_system_rocket = propulsion_system(fuel_feed_rocket, ox_feed_rocket, main_engine)
+coupled_system_rocket.solve(True)
+
+ox_engine_pipe_dp_rocket = ox_engine_pipes.get_inlet_pressure() - ox_engine_pipes.get_outlet_pressure()
+fuel_engine_pipe_dp_rocket = fuel_engine_pipes_rocket.get_inlet_pressure() - fuel_engine_pipes_rocket.get_outlet_pressure()
+
+ox_system_dP_rocket = ox_tank_outlet.inlet_pressure - ox_injector_liquid.inlet_pressure
+ox_mdot_rocket = ox_feed_rocket._mdot
+ox_system_CdA_rocket = calc_CdA(ox_system_dP_rocket, ox_mdot_rocket, n2o.density())
+
+print(f"AEL: Ox System DP: {ox_system_dP_ael/1e5:.2f} Bar, CdA: {ox_system_CdA_ael*1e6:.2f} mm² at {ox_mdot_ael:.2f} kg/s")
+print(f"  Ox Hose DP: {ox_hose_dp_ael/1e5:.2f} Bar, Ox Engine Pipe DP: {ox_engine_pipe_dp_ael/1e5:.2f} Bar")
+print(f"  Fuel Hose DP: {fuel_hose_dp_ael/1e5:.2f} Bar, Fuel Engine Pipe DP: {fuel_engine_pipe_dp_ael/1e5:.2f} Bar")
+print(f"Rocket: Ox System DP: {ox_system_dP_rocket/1e5:.2f} Bar, CdA: {ox_system_CdA_rocket*1e6:.2f} mm² at {ox_mdot_rocket:.2f} kg/s")
+print(f"  Ox Engine Pipe DP: {ox_engine_pipe_dp_rocket/1e5:.2f} Bar")
+print(f"  Fuel Engine Pipe DP: {fuel_engine_pipe_dp_rocket/1e5:.2f} Bar")
+
+pipe_id_1_4 = uc.in_to_m(0.25 - 2*0.036)
+
+# press_system = feed_system(50e5, "Test Pressurant Feed System")
+# outlet_pipe = pipe(id = pipe_id_1_4, L = 0.1, abs_roughness = pipe_roughness, name = "COPV Outlet Pipe")
+# ereg
+# ereg_valve = orifice(CdA = )
+
+
+# actual_fuel_sys_CdA = 13.5e-6
+# mdot = 0.65
+
+# fuel_feed_to_injector = feed_system(fuel_tank_p, "Fuel Feed to Injector")
+# fuel_feed_to_injector.add_component(fuel_tank_outlet, fuel_pipes, fuel_hose, fuel_valve, fuel_engine_pipes, regen_channels)
+# fuel_feed_to_injector.set_fluid(ipa)
+
+# fuel_feed_to_injector.solve_pressures(inlet_pressure=50e5, mdot=mdot)
+# fuel_feed_to_injector.print_pressures()
+# fuel_feed_to_injector.print_components()
+
+# inj_dp = fuel_injector.dp(ipa, 0.76)
+# regen_dp = regen_channels.dp(ipa, 0.76)
+# print(f"Injector DP for 0.76 kg/s: {inj_dp/1e5:.2f} Bar")
+# print(f"Regen DP for 0.76 kg/s: {regen_dp/1e5:.2f} Bar")
+# print(f"Total DP for 0.76 kg/s: {(inj_dp + regen_dp)/1e5:.2f} Bar")
+
+# def spi_CdA(mdot, dP, rho):
+#     """Calculate CdA of a single-phase injector."""
+#     return mdot / np.sqrt(2 * rho * dP)
+
+# dP = fuel_feed_to_injector._inlet_pressure - fuel_feed_to_injector.line[-1].outlet_pressure
+# rho = ipa.density()
+
+# print(f"Using: mdot = {mdot:.2f} kg/s, dP = {dP/1e5:.2f} Bar, rho = {rho:.2f} kg/m³")
+
+# spi_CdA_value = spi_CdA(mdot, dP, rho)
+# print(f"Single-Phase Injector CdA: {spi_CdA_value*1e6:.3f} mm²")
+
+# ox_feed.solve_mdot(cold_flow_tank_p, 101325)
+# ox_feed.print_pressures()
+# ox_feed.print_components()
+
+print(f"N2O Vapor Pressure: {n2o.vapor_pressure()/1e5:.2f} Bar, N2O Density: {n2o.density():.2f} kg/m³")

@@ -1,6 +1,6 @@
 import numpy as np
 from rocketcea.cea_obj_w_units import CEA_Obj
-from rocketcea.cea_obj import add_new_fuel
+from rocketcea.cea_obj import add_new_fuel, fuelCards
 import matplotlib.pyplot as plt
 import mplcursors
 from os import system
@@ -13,32 +13,81 @@ fuel CH3OH(L)   C 1 H 4 O 1
 h,cal=-57040.0      t(k)=298.15       wt%=50.00
 """
 add_new_fuel('nitromethanol', card_str )
+
+card_str = """
+fuel C2H5OH(L)   C 2 H 6 O 1     wt%=80.00
+h,cal=-66370.0      t(k)=298.15
+fuel water H 2.0 O 1.0   wt%=20.00
+h,cal=-68308.  t(k)=298.15 rho,g/cc = 0.9998
+"""
+add_new_fuel(card_str=card_str, name='Ethanol80')
+
+card_str = """
+fuel CH3OH(L)   C 1 H 4 O 1     wt%=80.00
+h,cal=-57040.0      t(k)=298.15
+fuel water H 2.0 O 1.0   wt%=20.00
+h,cal=-68308.  t(k)=298.15 rho,g/cc = 0.9998
+"""
+add_new_fuel(card_str=card_str, name='Methanol80')
+
+card_str = """
+fuel C3H8O-2propanol C 3 H 8 O 1     wt%=80.00
+h,cal=-65133.     t(k)=298.15
+fuel water H 2.0 O 1.0   wt%=20.00
+h,cal=-68308.  t(k)=298.15 rho,g/cc = 0.9998
+"""
+add_new_fuel(card_str=card_str, name='Isopropanol80')
+
+card_str = """
+fuel C3H8O-2propanol C 3 H 8 O 1     wt%=60.00
+h,cal=-65133.     t(k)=298.15
+fuel water H 2.0 O 1.0   wt%=40.00
+h,cal=-68308.  t(k)=298.15 rho,g/cc = 0.9998
+"""
+add_new_fuel(card_str=card_str, name='Isopropanol60')
+
+
+card_str = """
+fuel C3H8O-2propanol C 3 H 8 O 1     wt%=50.00
+h,cal=-65133.     t(k)=298.15
+fuel water H 2.0 O 1.0   wt%=50.00
+h,cal=-68308.  t(k)=298.15 rho,g/cc = 0.9998
+"""
+add_new_fuel(card_str=card_str, name='Isopropanol50')
+
+
 fuels = []
 
 # ox = 'Peroxide98'
-ox = 'LOX'
-# ox = 'N2O'
+# ox = 'LOX'
+# ox = 'GOX'
+ox = 'N2O'
 # ox = 'IRFNA'
 # ox = 'MON3'
 # ox = 'OF2'
 # ox = 'MON15'
 # ox = 'MON25'
 
-pc = 200
-pe = 1
+pc = 30
+pe = 1.01325
 nozzle_eff = 1
 
 # OF_lims = [0.01, 4]
-OF_lims = [0.1, 10]
+OF_lims = [0.001, 5]
 n_points = 250
 
 # fuels.append('Methanol')
+# fuels.append('Methanol80')
 # fuels.append('Ethanol')
+# fuels.append('Ethanol80')
 fuels.append('Isopropanol')
-fuels.append('Propane')
-fuels.append('RP-1')
-fuels.append('CH4')
-fuels.append('H2')
+fuels.append('Isopropanol80')
+fuels.append('Isopropanol60')
+fuels.append('Isopropanol50')
+# fuels.append('Propane')
+# fuels.append('RP-1')
+# fuels.append('CH4')
+# fuels.append('H2')
 # fuels.append('Hydrazine')
 # fuels.append('Ethane')
 # fuels.append('CH4')

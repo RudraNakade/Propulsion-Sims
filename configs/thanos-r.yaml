@@ -1,0 +1,20 @@
+metadata:
+  name: "THANOS-R Flight Engine"
+
+geometry:
+  nozzle_type: rao
+  
+  # Diameters (mm)
+  chamber_diameter: 92.00
+  throat_diameter: 43.59
+  exit_diameter: 87.00
+  
+  # Lengths (mm)
+  chamber_length: 144.31
+  exit_length: 65.69
+  
+  # Radii and angles
+  cyl_conv_radius: -1
+  converging_angle: 30.00
+  diverging_angle: 21.50
+  exit_angle: 14.00

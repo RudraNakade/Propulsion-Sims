@@ -1,10 +1,8 @@
 from typing import List, Optional
 from scipy.optimize import root_scalar, fsolve
-from pyfluids import Fluid, Input
-from thermo.chemical import Chemical
 import numpy as np
-import unit_converter as uc
 import enginesim as es
+import custom_fluids
 import time
 
 def colebrook(f: float, Re: float, rel_roughness: float) -> float:
@@ -125,12 +123,14 @@ class diameter_change(feed_system_component):
         self.A = 0.25 * np.pi * D ** 2
         self.A_up = 0.25 * np.pi * D_up ** 2
         self.beta = D / D_up
+        self.Cd_eff = Cd / np.sqrt(1 - self.beta**4)
+        self.CdA_eff = self.Cd_eff * self.A
 
     def dp(self, fluid: 'base_fluid_class', mdot: float) -> float:
         """Calculate pressure drop using orifice equation"""
         rho = fluid.density()#pressure = self.inlet_pressure)
         # ΔP = (ṁ / (Cd * A))² / (2 * ρ)
-        return (((np.sqrt(1 - self.beta**4) * mdot) / (self.Cd * self.A))**2) / (2 * rho)
+        return (mdot / self.CdA_eff) ** 2 / (2 * rho)
 
 # Regulator
 class regulator(feed_system_component):
@@ -196,102 +196,6 @@ class needle_valve(valve):
     def get_flow_coeff(self, position: float) -> float:
         return position
 
-# Fluids
-class base_fluid_class:
-    """Base class for fluid properties"""
-    def __init__(self, name: str = None, cea_name: str = None):
-        self.name = name
-        self.cea_name = cea_name
-
-    def density(self, temperature: float = None, pressure: float = None) -> float:
-        """Get fluid density at given conditions"""
-        raise NotImplementedError
-    
-    def viscosity(self, temperature: float = None, pressure: float = None) -> float:
-        """Get fluid viscosity at given conditions"""
-        raise NotImplementedError
-
-class incompressible_fluid(base_fluid_class):
-    """Incompressible fluid with constant properties"""
-    def __init__(self, density: float, visc: float = 1e-6, name: str = "Incompressible Fluid", cea_name: str = None):
-        """
-        Initialize incompressible fluid with constant properties.
-        """
-        super().__init__(name, cea_name)
-        self._density = density  # kg/m³ (private attribute)
-        self._visc = visc  # Pa·s (private attribute)
-    
-    def density(self, temperature: float = None, pressure: float = None) -> float:
-        """Get fluid density - constant for incompressible fluid"""
-        return self._density
-    
-    def viscosity(self, temperature: float = None, pressure: float = None) -> float:
-        """Get fluid viscosity - constant for incompressible fluid"""
-        return self._visc
-    
-class pyfluid(base_fluid_class):
-    """Fluid class for interfacing with pyfluids library"""
-    def __init__(self, input_fluid: Fluid, temperature: float = None, pressure: float = None, name: str = "PyFluid", cea_name: str = None):
-        super().__init__(name, cea_name)
-        self.fluid = input_fluid
-        self._temperature = temperature
-        self._pressure = pressure
-        self.update_state(temperature, pressure)
-
-    def update_state(self, temperature: float, pressure: float):
-        """Update fluid state with new temperature and/or pressure"""
-        if temperature is not None:
-            self._temperature = temperature
-        if pressure is not None:
-            self._pressure = pressure
-        if temperature is not None or pressure is not None:
-            self.fluid.update(Input.temperature(uc.K_to_degC(self._temperature)), Input.pressure(self._pressure))
-    
-    def density(self, temperature: float = None, pressure: float = None) -> float:
-        """Get fluid density at current or specified conditions"""
-        # self.update_state(temperature, pressure)
-        return self.fluid.density
-    
-    def viscosity(self, temperature: float = None, pressure: float = None) -> float:
-        """Get fluid dynamic viscosity at current or specified conditions"""
-        self.update_state(temperature, pressure)
-        return self.fluid.dynamic_viscosity
-
-class thermo_fluid(base_fluid_class):
-    """Fluid class for interfacing with thermo library"""
-    def __init__(self, chemical: Chemical, temperature: float = None, pressure: float = None, name: str = "Thermo Fluid", cea_name: str = None):
-        super().__init__(name, cea_name)
-        self.chemical = chemical
-        self._temperature = temperature  # K
-        self._pressure = pressure  # Pa
-        self.update_state(temperature, pressure)
-
-    def update_state(self, temperature: float = None, pressure: float = None):
-        """Update fluid state with new temperature and/or pressure"""
-        if temperature is not None:
-            self._temperature = temperature
-        if pressure is not None:
-            self._pressure = pressure
-        self.chemical.calculate(self._temperature, self._pressure)
-    
-    def density(self, temperature: float = None, pressure: float = None) -> float:
-        """Get fluid density at current or specified conditions"""
-        if temperature is not None or pressure is not None:
-            self.update_state(temperature, pressure)
-        return self.chemical.rho
-    
-    def viscosity(self, temperature: float = None, pressure: float = None) -> float:
-        """Get fluid dynamic viscosity at current or specified conditions"""
-        if temperature is not None or pressure is not None:
-            self.update_state(temperature, pressure)
-        return self.chemical.mu
-
-    def vapor_pressure(self, temperature: float = None, pressure: float = None) -> float:
-        """Get fluid vapor pressure at current or specified conditions"""
-        if temperature is not None or pressure is not None:
-            self.update_state(temperature, pressure)
-        return self.chemical.Psat
-
 # Feed system
 class feed_system:
     """Fluids system with series components only."""
@@ -307,7 +211,7 @@ class feed_system:
         for component in components:
             self.line.append(component)
     
-    def set_fluid(self, fluid: base_fluid_class):
+    def set_fluid(self, fluid: custom_fluids.base_fluid_class):
         """Set the fluid properties"""
         self.fluid = fluid
 
@@ -437,6 +341,14 @@ class feed_system:
                     print(f"   {'Current CdA':<18}: {component.get_effective_CdA()*1e6:<6.3f} mm²")
                     print(f"   {'Position':<18}: {component.position:.2f} (0 = closed, 1 = fully open)")
 
+                elif isinstance(component, diameter_change):
+                    print(f"   {'Cd':<18}: {component.Cd:.3f}")
+                    print(f"   {'Effective Cd':<18}: {component.Cd_eff:.3f}")
+                    print(f"   {'Diameter':<18}: {component.D*1e3:.3f} mm")
+                    print(f"   {'Upstream Diameter':<18}: {component.D_up*1e3:.3f} mm")
+                    print(f"   {'CdA':<18}: {component.Cd * component.A * 1e6:.3f} mm²")
+                    print(f"   {'Effective CdA':<18}: {component.CdA_eff*1e6:.3f} mm²")
+
                 if i < len(self.line):
                     print("")
         else:
@@ -479,7 +391,7 @@ class engine:
             pamb=self.pamb,
             cstar_eff=self.cstar_eff,
             cf_eff=self.cf_eff,
-            full_sim=full_sim
+            simplified=not(full_sim)
         )
 
     def simple_combustion_sim(self, pc: float = None, OF: float = None) -> None:

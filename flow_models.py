@@ -13,12 +13,15 @@ def spc_mdot(CdA: float, input_fluid: Fluid, t_0: float, p_0: float, p_down: flo
     Args:
         CdA (float): Cd * Area (m²)
         input_fluid (Fluid): Pyfluids fluid object
-        t_0 (float): Upstream (stagnation) temperature (K)
-        p_0 (float): Upstream (stagnation) pressure (Pa)
+        t_0 (float): Upstream stagnation temperature (K)
+        p_0 (float): Upstream stagnation pressure (Pa)
         p_down (float): Downstream pressure (Pa)
     Returns:
-        tuple[float, float, bool]: (mdot (kg/s), downstream choking pressure (Pa), choked status)
+        tuple[float, float, bool]: (mdot (kg/s), critical pressure (Pa), choked status)
     """
+
+    if p_down > p_0:
+        raise ValueError("Warning: Downstream pressure greater than upstream pressure in SPC model.")
 
     fluid = Fluid(input_fluid.name).with_state(Input.temperature(K_to_degC(t_0)), Input.pressure(p_0))  # stagnation
 
@@ -40,8 +43,8 @@ def spc_mdot(CdA: float, input_fluid: Fluid, t_0: float, p_0: float, p_down: flo
 
     return (mdot, critical_p, choked)
 
-def spc_p_0(CdA: float, mdot: float, fluid: Fluid, t_0: float, p_down) -> tuple[float, float, bool]:
-    """Calculates the upstream pressure (p_0) for a given mass flow rate (mdot) using the SPC model.
+def spc_p_0(CdA: float, mdot: float, fluid: Fluid, t_0: float, p_down: float) -> tuple[float, float, bool]:
+    """Calculates the upstream stagnation pressure (p_0) for a given mass flow rate (mdot) using the SPC model.
     Assumes ideal gas behaviour.
     Calculates specific gas constant using fluid molecular weight.
     Calculates ratio of specific heats using calculated specific gas constant and constant pressure specific heat.
@@ -49,10 +52,10 @@ def spc_p_0(CdA: float, mdot: float, fluid: Fluid, t_0: float, p_down) -> tuple[
         CdA (float): Cd * Area (m²)
         mdot (float): Mass flow rate (kg/s)
         fluid (Fluid): Pyfluids fluid object
-        t_0 (float): Upstream (stagnation) temperature (K)
+        t_0 (float): Upstream stagnation temperature (K)
         p_down (float): Downstream pressure (Pa)
     Returns:
-        tuple[float, float, bool]: (upstream pressure (p_0) (Pa), downstream choking pressure (Pa), choked status)
+        tuple[float, float, bool]: (upstream pressure (p_0) (Pa), critical pressure (Pa), choked status)
     """
 
     def mdot_func(p_0, target_mdot, CdA, fluid, t_0, p_down):
@@ -66,7 +69,7 @@ def spc_p_0(CdA: float, mdot: float, fluid: Fluid, t_0: float, p_down) -> tuple[
 
     return (result.root, downstream_choking_p, choked)
 
-def spc_p_down(CdA: float, mdot: float, fluid: Fluid, t_0: float, p_0) -> tuple[float, float, bool]: # TODO: Update (won't work due to choked flow)
+def spc_p_down(CdA: float, mdot: float, fluid: Fluid, t_0: float, p_0: float) -> tuple[float, float, bool]: # TODO: Update (won't work due to choked flow)
     """Calculates the downstream pressure (p_down) for a given mass flow rate (mdot) using the SPC model.
     Assumes ideal gas behaviour.
     Calculates specific gas constant using fluid molecular weight.
@@ -78,7 +81,7 @@ def spc_p_down(CdA: float, mdot: float, fluid: Fluid, t_0: float, p_0) -> tuple[
         t_0 (float): Upstream (stagnation) temperature (K)
         p_0 (float): Upstream (stagnation) pressure (Pa)
     Returns:
-        tuple[float, float, bool]: (downstream pressure (p_down) (Pa), downstream choking pressure (Pa), choked status)
+        tuple[float, float, bool]: (downstream pressure (p_down) (Pa), critical pressure (Pa), choked status)
     """
 
     def mdot_func(p_down, target_mdot, CdA, fluid, t_0, p_0):
@@ -95,28 +98,48 @@ def spc_p_down(CdA: float, mdot: float, fluid: Fluid, t_0: float, p_0) -> tuple[
 def spi_mdot(CdA: float, P_up: float, P_down: float, rho_up: float) -> float:
     """Single-Phase Incompressible flow model
     Args:
+        CdA (float): Cd * Area (m²)
         P_up (float): Upstream pressure (Pa)
         P_down (float): Downstream pressure (Pa)
         rho_up (float): Upstream density (kg/m³)
-        A (float): Cross-sectional area (m²)
-        Cd (float): Discharge coefficient
-        Returns:
+    Returns:
         float: Mass flow rate (kg/s)
     """
     
     dP = P_up - P_down
     
     if dP < 0:
-        raise ValueError("Negative pressure drop specified for SPI model.")
+        print("Warning: Negative pressure drop specified for SPI model.")
+        return 0
 
     mdot = CdA * np.sqrt(2 * rho_up * dP)
     return mdot
+
+def spi_CdA(mdot: float, P_up: float, P_down: float, rho_up: float) -> float:
+    """Calculates Cd * Area (CdA) for Single-Phase Incompressible flow model
+    Args:
+        mdot (float): Mass flow rate (kg/s)
+        P_up (float): Upstream pressure (Pa)
+        P_down (float): Downstream pressure (Pa)
+        rho_up (float): Upstream density (kg/m³)
+    Returns:
+        float: Cd * Area (m²)
+    """
+
+    dP = P_up - P_down
+
+    if dP < 0:
+        print("Warning: Negative pressure drop specified for SPI model.")
+        return 0
+
+    CdA = mdot / np.sqrt(2 * rho_up * dP)
+    return CdA
 
 def hem_mdot(CdA: float, upstream: Fluid, downstream_p: float) -> float:
     """Homogeneous Equilibrium Model (HEM)
     Args:
         CdA (float): Cd * Area (m²)
-        upstream (Fluid): Upstream fluid state
+        upstream_fluid (Fluid): Upstream fluid state
         downstream_p (float): Downstream pressure (Pa)
     Returns:
         float: Mass flow rate (kg/s)
@@ -140,29 +163,29 @@ def hem_mdot(CdA: float, upstream: Fluid, downstream_p: float) -> float:
 
     return mdot
 
-def nhne_mdot(CdA: float, upstream: Fluid, downstream_p: float) -> float:
+def nhne_mdot(CdA: float, upstream_fluid: Fluid, downstream_p: float) -> float:
     """Non-Homogeneous Non-Equilibrium Model (NHNE)
     Args:
         CdA (float): Cd * Area (m²)
-        upstream (Fluid): Upstream fluid state
+        upstream_fluid (Fluid): Upstream Pyfluids fluid object
         downstream_p (float): Downstream pressure (Pa)
     Returns:
         float: Mass flow rate (kg/s)
     """
     
-    P_up = upstream.pressure
+    P_up = upstream_fluid.pressure
     P_down = downstream_p
-    rho_up = upstream.density
+    rho_up = upstream_fluid.density
 
-    vp_instance = upstream.clone()
-    vp_instance.update(Input.temperature(upstream.temperature), Input.quality(0))
+    vp_instance = upstream_fluid.clone()
+    vp_instance.update(Input.temperature(upstream_fluid.temperature), Input.quality(0))
     vp = vp_instance.pressure
 
     if P_down >= vp:
         mdot = spi_mdot(CdA, P_up, P_down, rho_up)
     else:
         mdot_spi = spi_mdot(CdA, P_up, P_down, rho_up)
-        mdot_hem = hem_mdot(CdA, upstream, P_down)
+        mdot_hem = hem_mdot(CdA, upstream_fluid, P_down)
 
         k = np.sqrt((P_up - vp) / (vp - P_down))
 

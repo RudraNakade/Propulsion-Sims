@@ -33,7 +33,7 @@ def plot_saturation_properties(fluid):
     ax1.set_xlim(left=T[0],right=T[-1])
     ax2 = ax1.twinx()
     ax2.plot(T, D_l,'b',label='Liquid Density')
-    ax2.plot(T, D_g,'m',label='Gas Density')
+    # ax2.plot(T, D_g,'m',label='Gas Density')
     ax1.set_ylim(bottom=0)
     ax2.set_ylim(bottom=0)
     ax2.set_ylabel('Density (kg/m^3)' , color='b')
@@ -42,6 +42,7 @@ def plot_saturation_properties(fluid):
     fig.tight_layout()
 
 plot_saturation_properties(FluidsList.NitrousOxide)
+# plot_saturation_properties(FluidsList.CarbonDioxide)
 # plot_saturation_properties(FluidsList.nPropane)
 # plot_saturation_properties(FluidsList.nButane)
 # plot_saturation_properties(FluidsList.Ethane)

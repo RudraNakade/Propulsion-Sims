@@ -1,0 +1,21 @@
+metadata:
+  name: "L9 CSJ"
+
+geometry:
+  nozzle_type: conical
+  
+  # Diameters (mm)
+  chamber_diameter: 100.00
+  throat_diameter: 45.00
+  exit_diameter: 92.00
+
+  # Lengths (mm)
+  chamber_length: 160.00
+  throat_length: 1.00
+  
+  # Radii and angles
+  cyl_conv_radius: 10.00
+  throat_conv_radius: 11.80
+  throat_div_radius: 11.80
+  converging_angle: 45.00
+  diverging_angle: 15.00

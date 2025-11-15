@@ -9,10 +9,10 @@ fluids_list = [
     {'name': 'Oxygen', 'fluid_type': FluidsList.Oxygen},
     {'name': 'Nitrogen', 'fluid_type': FluidsList.Nitrogen},
     {'name': 'Propane', 'fluid_type': FluidsList.nPropane},
-    # {'name': 'Ethane', 'fluid_type': FluidsList.Ethane},
+    {'name': 'Ethane', 'fluid_type': FluidsList.Ethane},
     {'name': 'Methane', 'fluid_type': FluidsList.Methane},  
     {'name': 'Hydrogen', 'fluid_type': FluidsList.Hydrogen},
-    {'name': 'Argon', 'fluid_type': FluidsList.Argon}
+    # {'name': 'Argon', 'fluid_type': FluidsList.Argon}
     # {'name': 'Helium', 'fluid_type': FluidsList.Helium},
 ]
 
@@ -62,8 +62,7 @@ for name, fluid_info in fluids.items():
             else:
                 fluid_info['vapor_pressure'][i] = None
 
-# storage_pressure = 1e5 # atmospheric pressure
-storage_pressure = 1.01325e5 # 5 bar(g)
+storage_pressure = 1.01325e5
 
 # Print critical point and storage properties
 print("Critical Point Properties:")

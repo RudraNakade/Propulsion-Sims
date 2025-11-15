@@ -10,7 +10,7 @@ geometry:
   exit_diameter: 32.00
 
   # Lengths (mm)
-  chamber_length: 107.59
+  chamber_length: 87.59
   throat_length: 1.00
   
   # Radii and angles
