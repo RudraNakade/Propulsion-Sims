@@ -59,7 +59,7 @@ ox_inj_CdA = ox_inj_CdA * 0.5; %
 
 disp('Opening Simulink')
 
-open_system('ereg_single_tank.slx');
+open_system('ereg_system_sim.slx');
 
 function A = id_2_A(id)
     A = pi * (id/2)^2;

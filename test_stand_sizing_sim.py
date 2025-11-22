@@ -12,7 +12,8 @@ n2o = custom_fluids.thermo_fluid("nitrous oxide", temperature = 273.15 - 8, pres
 ipa = custom_fluids.thermo_fluid("isopropanol", temperature = 290, pressure = 40e5, name = "IPA", cea_name = "Isopropanol")
 water = custom_fluids.pyfluid(Fluid(FluidsList.Water), 290, 10e5, "Water", "H2O")
 
-tank_p = 90e5
+tank_p = 80e5
+delivery_p = 60e5
 
 fitting_Cd = 0.6
 
@@ -35,7 +36,7 @@ fuel_tank_outlet = orifice(CdA = pipe_area_3_4 * fitting_Cd, name="Fuel Tank Out
 fuel_tank_valve_pipe = pipe(id=pipe_id_3_4, L=1, abs_roughness=pipe_roughness, name="Fuel Tank to Valve Pipe")
 fuel_run_valve = ball_valve(open_CdA= uc.Cv_to_CdA(13.6), name ="Fuel Run Valve - 3/4\" Slok 3-piece ball valve")
 fuel_run_line = pipe(id=pipe_id_3_4, L=1, abs_roughness=pipe_roughness, name="Fuel Run Line")
-fuel_hose = pipe(id=pipe_id_1_2, L=1, abs_roughness=pipe_roughness, name="Fuel Hose")
+fuel_hose = pipe(id=pipe_id_3_4 * 0.85, L=1, abs_roughness=pipe_roughness, name="Fuel Hose")
 
 # fuel_tank_outlet = orifice(CdA = pipe_area_1_2 * fitting_Cd, name="Fuel Tank Outlet")
 # fuel_tank_valve_pipe = pipe(id=pipe_id_1_2, L=1, abs_roughness=pipe_roughness, name="Fuel Tank to Valve Pipe")
@@ -45,29 +46,29 @@ fuel_hose = pipe(id=pipe_id_1_2, L=1, abs_roughness=pipe_roughness, name="Fuel H
 
 fuel_feed_system.add_component(fuel_tank_outlet, fuel_tank_valve_pipe, fuel_run_valve, fuel_run_line, fuel_hose)
 
-fuel_feed_system.solve_mdot(inlet_pressure=tank_p, outlet_pressure=80e5)
+fuel_feed_system.solve_mdot(inlet_pressure=tank_p, outlet_pressure=delivery_p)
 fuel_feed_system.print_pressures()
 
-###########################################################################
+#################################################################################################################################
 
 ox_feed_system = feed_system(tank_p, "Oxidizer Feed System")
 ox_feed_system.set_fluid(n2o)
 
-# ox_tank_outlet = orifice(CdA = pipe_area_1 * fitting_Cd, name="Oxidizer Tank Outlet")
-# ox_tank_valve_pipe = pipe(id=pipe_id_1, L=1, abs_roughness=pipe_roughness, name="Oxidizer Tank to Valve Pipe")
-# ox_run_valve = ball_valve(open_CdA= uc.Cv_to_CdA(40), name ="Oxidizer Run Valve - 1\" Slok 3-piece ball valve")
-# ox_run_line = pipe(id=pipe_id_1, L=1, abs_roughness=pipe_roughness, name="Oxidizer Run Line")
-# ox_hose = pipe(id=pipe_id_3_4, L=1, abs_roughness=pipe_roughness, name="Oxidizer Hose")
+ox_tank_outlet = orifice(CdA = pipe_area_1 * fitting_Cd, name="Oxidizer Tank Outlet")
+ox_tank_valve_pipe = pipe(id=pipe_id_1, L=1, abs_roughness=pipe_roughness, name="Oxidizer Tank to Valve Pipe")
+ox_run_valve = ball_valve(open_CdA= uc.Cv_to_CdA(40), name ="Oxidizer Run Valve - 1\" Slok 3-piece ball valve")
+ox_run_line = pipe(id=pipe_id_1, L=1, abs_roughness=pipe_roughness, name="Oxidizer Run Line")
+ox_hose = pipe(id=pipe_id_1*0.85, L=1, abs_roughness=pipe_roughness, name="Oxidizer Hose")
 
-ox_tank_outlet = orifice(CdA = pipe_area_3_4 * fitting_Cd, name="Oxidizer Tank Outlet")
-ox_tank_valve_pipe = pipe(id=pipe_id_3_4, L=1, abs_roughness=pipe_roughness, name="Oxidizer Tank to Valve Pipe")
-ox_run_valve = ball_valve(open_CdA= uc.Cv_to_CdA(13.6), name ="Oxidizer Run Valve - 3/4\" Slok 3-piece ball valve")
-ox_run_line = pipe(id=pipe_id_3_4, L=1, abs_roughness=pipe_roughness, name="Oxidizer Run Line")
-ox_hose = pipe(id=pipe_id_3_4, L=1, abs_roughness=pipe_roughness, name="Oxidizer Hose")
+# ox_tank_outlet = orifice(CdA = pipe_area_3_4 * fitting_Cd, name="Oxidizer Tank Outlet")
+# ox_tank_valve_pipe = pipe(id=pipe_id_3_4, L=1, abs_roughness=pipe_roughness, name="Oxidizer Tank to Valve Pipe")
+# ox_run_valve = ball_valve(open_CdA= uc.Cv_to_CdA(13.6), name ="Oxidizer Run Valve - 3/4\" Slok 3-piece ball valve")
+# ox_run_line = pipe(id=pipe_id_3_4, L=1, abs_roughness=pipe_roughness, name="Oxidizer Run Line")
+# ox_hose = pipe(id=pipe_id_3_4, L=1, abs_roughness=pipe_roughness, name="Oxidizer Hose")
 
 ox_feed_system.add_component(ox_tank_outlet, ox_tank_valve_pipe, ox_run_valve, ox_run_line, ox_hose)
 
-ox_feed_system.solve_mdot(inlet_pressure=tank_p, outlet_pressure=80e5)
+ox_feed_system.solve_mdot(inlet_pressure=tank_p, outlet_pressure=delivery_p)
 ox_feed_system.print_pressures()
 
 fuel_vdot = fuel_feed_system.get_mdot() / ipa.density()

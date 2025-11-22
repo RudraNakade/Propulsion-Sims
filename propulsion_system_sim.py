@@ -2,7 +2,7 @@ from typing import List, Optional
 from scipy.optimize import root_scalar, fsolve
 import numpy as np
 import enginesim as es
-import custom_fluids
+from custom_fluids import base_fluid_class
 import time
 
 def colebrook(f: float, Re: float, rel_roughness: float) -> float:
@@ -115,14 +115,14 @@ class orifice(feed_system_component):
         return (mdot / self.CdA) ** 2 / (2 * rho)
 
 class diameter_change(feed_system_component):
-    def __init__(self, Cd: float, D: float, D_up: float, name: str = "Orifice (Diameter Change)"):
+    def __init__(self, Cd: float, D_down: float, D_up: float, name: str = "Orifice (Diameter Change)"):
         super().__init__(name)
         self.Cd = Cd
-        self.D = D
+        self.D = D_down
         self.D_up = D_up
-        self.A = 0.25 * np.pi * D ** 2
+        self.A = 0.25 * np.pi * D_down ** 2
         self.A_up = 0.25 * np.pi * D_up ** 2
-        self.beta = D / D_up
+        self.beta = D_down / D_up
         self.Cd_eff = Cd / np.sqrt(1 - self.beta**4)
         self.CdA_eff = self.Cd_eff * self.A
 
@@ -184,7 +184,8 @@ class ball_valve(valve):
         super().__init__(open_CdA, name, max_rate)
 
     def get_flow_coeff(self, position: float) -> float:
-        flow_arr = np.array([0, 3, 5, 9, 15, 23, 35, 58, 77, 90]) / 90
+        # flow_arr = np.array([0, 3, 5, 9, 15, 23, 35, 58, 77, 90]) / 90
+        flow_arr = np.array([0, 3, 4, 8, 13, 19, 30, 50, 67, 78]) / 78
         pos_arr  = np.array([0, 10, 20, 30, 40, 50, 60, 70, 80, 90]) / 90
 
         return np.interp(position, pos_arr, flow_arr)
@@ -211,7 +212,7 @@ class feed_system:
         for component in components:
             self.line.append(component)
     
-    def set_fluid(self, fluid: custom_fluids.base_fluid_class):
+    def set_fluid(self, fluid: base_fluid_class):
         """Set the fluid properties"""
         self.fluid = fluid
 
@@ -252,6 +253,10 @@ class feed_system:
         if mdot <= 0:
             raise ValueError("Mass flow rate must be positive")
         self._mdot = mdot
+
+    def set_inlet_pressure(self, inlet_pressure: float) -> None:
+        """Set the inlet pressure of the feed system"""
+        self._inlet_pressure = inlet_pressure
 
     def solve_pressures(self, inlet_pressure: float = None, mdot: float = None) -> None:
         """

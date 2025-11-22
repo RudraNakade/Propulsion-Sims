@@ -73,20 +73,20 @@ pe = 1.01325
 nozzle_eff = 1
 
 # OF_lims = [0.01, 4]
-OF_lims = [0.001, 5]
-n_points = 250
+OF_lims = [0.001, 10]
+n_points = 100
 
 # fuels.append('Methanol')
 # fuels.append('Methanol80')
-# fuels.append('Ethanol')
-# fuels.append('Ethanol80')
+fuels.append('Ethanol')
+fuels.append('Ethanol80')
 fuels.append('Isopropanol')
 fuels.append('Isopropanol80')
-fuels.append('Isopropanol60')
-fuels.append('Isopropanol50')
-# fuels.append('Propane')
+# fuels.append('Isopropanol60')
+# fuels.append('Isopropanol50')
+fuels.append('Propane')
 # fuels.append('RP-1')
-# fuels.append('CH4')
+fuels.append('CH4')
 # fuels.append('H2')
 # fuels.append('Hydrazine')
 # fuels.append('Ethane')

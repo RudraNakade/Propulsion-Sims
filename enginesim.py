@@ -1,6 +1,5 @@
-from matplotlib.pylab import f, gamma
 from rocketcea.cea_obj_w_units import CEA_Obj
-from rocketcea.cea_obj import fuelCards, add_new_fuel
+from rocketcea.cea_obj import add_new_fuel
 from scipy.optimize import root_scalar
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
@@ -1228,6 +1227,16 @@ if __name__ == '__main__':
     
     print(f'Throat Reynolds Number: {calc_Re_throat(pluto):.2f}')
     print(f'Throat Reynolds Number: {calc_Re_throat(csj):.2f}')
+
+    OFsweep(
+        fuel = 'RP-1',
+        ox = 'LOX',
+        pc = 101e5,
+        start = 0.1,
+        end = 4,
+        pe = 101325,
+        show_frozen=True
+    )
 
     # igniter.de = igniter.dt
     # igniter.update()

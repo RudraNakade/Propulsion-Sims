@@ -1,3 +1,4 @@
+from thermo import PRZEDZIECKI_SRIDHAR
 from propulsion_system_sim import *
 from pyfluids import Fluid, FluidsList
 import unit_converter as uc
@@ -15,10 +16,10 @@ water = custom_fluids.pyfluid(Fluid(FluidsList.Water), 290, 10e5, "Water", "H2O"
 # tank_p = 50e5
 fitting_Cd = 0.6
 
-fuel_tank_p = 50e5  # Pa
-ox_tank_p_ael = 50e5  # Pa
+fuel_tank_p = 55e5  # Pa
+# ox_tank_p_ael = 50e5  # Pa
 
-ox_tank_p_rocket = ox_tank_p_ael + 4.8e5 # Pa
+ox_tank_p_rocket = 50e5 # Pa
 
 annulus_id = 17.29e-3
 annulus_od = 18.18e-3
@@ -40,7 +41,7 @@ fuel_inj_CdA = fuel_inj_area * fuel_inj_Cd  # m²
 print(f"Fuel Injector CdA: {fuel_inj_CdA * 1e6:.3f} mm², Cd: {fuel_inj_Cd:.3f}")
 
 fuel_feed_ael = feed_system(fuel_tank_p, "Fuel Feed System")
-ox_feed_ael = feed_system(ox_tank_p_ael, "Ox Feed System")
+# ox_feed_ael = feed_system(ox_tank_p_ael, "Ox Feed System")
 
 pipe_id_3_4 = uc.in_to_m(0.75 - 2*0.036)
 pipe_id_1_2 = uc.in_to_m(0.5 - 2*0.036)
@@ -61,8 +62,8 @@ ox_engine_pipe_length = 0.35
 # fuel_valve_angle = 60
 # ox_valve_angle = 70
 
-fuel_valve_angle = 90
-ox_valve_angle = 90
+fuel_valve_angle = 60
+ox_valve_angle = 95
 
 fuel_valve_position = (fuel_valve_angle - 22) / (100 - 22)
 ox_valve_position = (ox_valve_angle - 14) / (95 - 14)
@@ -88,35 +89,35 @@ ox_engine_pipes = pipe(id = pipe_id_1_2, L=ox_engine_pipe_length, abs_roughness 
 ox_valve = ball_valve(open_CdA = uc.Cv_to_CdA(12), name = '1/2" Slok Ball Valve')
 ox_injector_liquid = orifice(CdA = 79e-6, name = "N2O Injector")
 ox_injector_two_phase = orifice(CdA = 57e-6, name = "N2O Injector")
-ox_feed_ael.add_component(ox_tank_outlet, ox_pipes_ael, ox_hose, ox_valve, ox_engine_pipes, ox_injector_two_phase)
+# ox_feed_ael.add_component(ox_tank_outlet, ox_pipes_ael, ox_hose, ox_valve, ox_engine_pipes, ox_injector_two_phase)
 
 # ox_feed_CdA = 45e-6
 # ox_feed_orifice = orifice(CdA = ox_feed_CdA, name = "Ox Feed Orifice")
 # ox_feed.add_component(ox_feed_orifice, ox_injector)
 
-ox_feed_ael.set_fluid(n2o)
+# ox_feed_ael.set_fluid(n2o)
 
 def calc_CdA(dp, mdot, rho):
     """Calculate the required CdA for a given pressure drop and mass flow rate."""
     return mdot / np.sqrt(2 * rho * dp)
 
-# ox_valve.set_position(ox_valve_position)
-# fuel_valve.set_position(fuel_valve_position)
+ox_valve.set_position(ox_valve_position)
+fuel_valve.set_position(fuel_valve_position)
 
 main_engine = engine("configs/l9.yaml", cstar_eff=0.96, cf_eff=0.905)
 
-coupled_system_ael = propulsion_system(fuel_feed_ael, ox_feed_ael, main_engine)
-coupled_system_ael.solve(True)
+# coupled_system_ael = propulsion_system(fuel_feed_ael, ox_feed_ael, main_engine)
+# coupled_system_ael.solve(True)
 
-ox_hose_dp_ael = ox_hose.get_inlet_pressure() - ox_hose.get_outlet_pressure()
-ox_engine_pipe_dp_ael = ox_engine_pipes.get_inlet_pressure() - ox_engine_pipes.get_outlet_pressure()
+# ox_hose_dp_ael = ox_hose.get_inlet_pressure() - ox_hose.get_outlet_pressure()
+# ox_engine_pipe_dp_ael = ox_engine_pipes.get_inlet_pressure() - ox_engine_pipes.get_outlet_pressure()
 
-fuel_hose_dp_ael = fuel_hose.get_inlet_pressure() - fuel_hose.get_outlet_pressure()
-fuel_engine_pipe_dp_ael = fuel_engine_pipes_ael.get_inlet_pressure() - fuel_engine_pipes_ael.get_outlet_pressure()
+# fuel_hose_dp_ael = fuel_hose.get_inlet_pressure() - fuel_hose.get_outlet_pressure()
+# fuel_engine_pipe_dp_ael = fuel_engine_pipes_ael.get_inlet_pressure() - fuel_engine_pipes_ael.get_outlet_pressure()
 
-ox_system_dP_ael = ox_tank_outlet.inlet_pressure - ox_injector_two_phase.inlet_pressure
-ox_mdot_ael = ox_feed_ael._mdot
-ox_system_CdA_ael = calc_CdA(ox_system_dP_ael, ox_mdot_ael, n2o.density())
+# ox_system_dP_ael = ox_tank_outlet.inlet_pressure - ox_injector_two_phase.inlet_pressure
+# ox_mdot_ael = ox_feed_ael._mdot
+# ox_system_CdA_ael = calc_CdA(ox_system_dP_ael, ox_mdot_ael, n2o.density())
 
 fuel_feed_rocket = feed_system(fuel_tank_p, "Rocket Fuel Feed System")
 fuel_feed_rocket.add_component(fuel_tank_outlet, fuel_raceway, fuel_engine_pipes_rocket, fuel_valve, regen_channels, fuel_injector)
@@ -127,21 +128,62 @@ ox_feed_rocket.add_component(ox_tank_outlet, ox_pipes_rocket, ox_valve, ox_injec
 ox_feed_rocket.set_fluid(n2o)
 
 coupled_system_rocket = propulsion_system(fuel_feed_rocket, ox_feed_rocket, main_engine)
-coupled_system_rocket.solve(True)
+# coupled_system_rocket.solve(True)
 
-ox_engine_pipe_dp_rocket = ox_engine_pipes.get_inlet_pressure() - ox_engine_pipes.get_outlet_pressure()
-fuel_engine_pipe_dp_rocket = fuel_engine_pipes_rocket.get_inlet_pressure() - fuel_engine_pipes_rocket.get_outlet_pressure()
+fuel_valve_angles = np.linspace(30, 100, 20)
+fuel_tank_p_arr = np.arange(45e5, 60e5, 5e5)
 
-ox_system_dP_rocket = ox_tank_outlet.inlet_pressure - ox_injector_liquid.inlet_pressure
-ox_mdot_rocket = ox_feed_rocket._mdot
-ox_system_CdA_rocket = calc_CdA(ox_system_dP_rocket, ox_mdot_rocket, n2o.density())
+valve_CdA_array = np.zeros(len(fuel_valve_angles))
+pc_arr = np.zeros((len(fuel_tank_p_arr), len(fuel_valve_angles)))
+OF_arr = np.zeros((len(fuel_tank_p_arr), len(fuel_valve_angles)))
+thrust_arr = np.zeros((len(fuel_tank_p_arr), len(fuel_valve_angles)))
 
-print(f"AEL: Ox System DP: {ox_system_dP_ael/1e5:.2f} Bar, CdA: {ox_system_CdA_ael*1e6:.2f} mm² at {ox_mdot_ael:.2f} kg/s")
-print(f"  Ox Hose DP: {ox_hose_dp_ael/1e5:.2f} Bar, Ox Engine Pipe DP: {ox_engine_pipe_dp_ael/1e5:.2f} Bar")
-print(f"  Fuel Hose DP: {fuel_hose_dp_ael/1e5:.2f} Bar, Fuel Engine Pipe DP: {fuel_engine_pipe_dp_ael/1e5:.2f} Bar")
-print(f"Rocket: Ox System DP: {ox_system_dP_rocket/1e5:.2f} Bar, CdA: {ox_system_CdA_rocket*1e6:.2f} mm² at {ox_mdot_rocket:.2f} kg/s")
-print(f"  Ox Engine Pipe DP: {ox_engine_pipe_dp_rocket/1e5:.2f} Bar")
-print(f"  Fuel Engine Pipe DP: {fuel_engine_pipe_dp_rocket/1e5:.2f} Bar")
+for i, tank_p in enumerate(fuel_tank_p_arr):
+    for j, angle in enumerate(fuel_valve_angles):
+        fuel_valve_position = (angle - 22) / (100 - 22)
+        fuel_valve.set_position(fuel_valve_position)
+        valve_CdA_array[j] = fuel_valve.get_effective_CdA()
+        fuel_feed_rocket.set_inlet_pressure(tank_p)
+        coupled_system_rocket.solve(False)
+        pc_arr[i, j] = main_engine._pc
+        OF_arr[i, j] = main_engine._OF
+        thrust_arr[i, j] = main_engine.thrust
+        print(f"Tank P: {tank_p/1e5:.1f} bar, Fuel Valve Angle: {angle:.1f} deg - Pc: {main_engine._pc/1e5:.2f} bar, OF: {main_engine._OF:.2f}, Thrust: {main_engine.thrust:.2f} N")
+
+import matplotlib.pyplot as plt
+fig, ax1 = plt.subplots(figsize=(12, 8))
+
+for i, tank_p in enumerate(fuel_tank_p_arr):
+    ax1.plot(fuel_valve_angles, OF_arr[i, :], '-o', label=f'{tank_p/1e5:.0f} bar')
+ax1.set_xlabel('Fuel Valve Angle (deg)')
+ax1.set_ylabel('OF Ratio', color='tab:blue')
+ax1.tick_params(axis='y', labelcolor='tab:blue')
+ax1.grid(True, alpha=0.3)
+ax1.legend(title='Fuel Tank Pressure', loc='upper left')
+
+ax2 = ax1.twinx()
+ax2.plot(fuel_valve_angles, valve_CdA_array * 1e6, '-s', color='tab:red', label='Valve CdA')
+ax2.set_ylabel('Valve CdA (mm²)', color='tab:red')
+ax2.tick_params(axis='y', labelcolor='tab:red')
+ax2.legend(loc='upper right')
+
+plt.title('OF Ratio and Valve CdA vs Fuel Valve Angle')
+fig.tight_layout()
+plt.show()
+
+# ox_engine_pipe_dp_rocket = ox_engine_pipes.get_inlet_pressure() - ox_engine_pipes.get_outlet_pressure()
+# fuel_engine_pipe_dp_rocket = fuel_engine_pipes_rocket.get_inlet_pressure() - fuel_engine_pipes_rocket.get_outlet_pressure()
+
+# ox_system_dP_rocket = ox_tank_outlet.inlet_pressure - ox_injector_liquid.inlet_pressure
+# ox_mdot_rocket = ox_feed_rocket._mdot
+# ox_system_CdA_rocket = calc_CdA(ox_system_dP_rocket, ox_mdot_rocket, n2o.density())
+
+# print(f"AEL: Ox System DP: {ox_system_dP_ael/1e5:.2f} Bar, CdA: {ox_system_CdA_ael*1e6:.2f} mm² at {ox_mdot_ael:.2f} kg/s")
+# print(f"  Ox Hose DP: {ox_hose_dp_ael/1e5:.2f} Bar, Ox Engine Pipe DP: {ox_engine_pipe_dp_ael/1e5:.2f} Bar")
+# print(f"  Fuel Hose DP: {fuel_hose_dp_ael/1e5:.2f} Bar, Fuel Engine Pipe DP: {fuel_engine_pipe_dp_ael/1e5:.2f} Bar")
+# print(f"Rocket: Ox System DP: {ox_system_dP_rocket/1e5:.2f} Bar, CdA: {ox_system_CdA_rocket*1e6:.2f} mm² at {ox_mdot_rocket:.2f} kg/s")
+# print(f"  Ox Engine Pipe DP: {ox_engine_pipe_dp_rocket/1e5:.2f} Bar")
+# print(f"  Fuel Engine Pipe DP: {fuel_engine_pipe_dp_rocket/1e5:.2f} Bar")
 
 pipe_id_1_4 = uc.in_to_m(0.25 - 2*0.036)
 
